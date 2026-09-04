@@ -15,10 +15,12 @@ Scope note from the owner: **TUI only.** The Rust original's CLI commands
 (`list`, `status`, `scan`, …) are explicitly out of scope; everything they
 do is delivered through the dashboard.
 
-**Status:** the port is complete — config, discovery, git probes, watcher,
-org sync, the dashboard, and the org manager — through the first UI polish
-pass (full-width stable table, the header operation widget, detail commit
-history, shell theming). The repo of record is `crueber/coldstorage`; the
+**Status:** 1.0 — the port is complete: config, discovery, git probes,
+watcher, org sync, the dashboard and org manager, the first UI polish pass
+(full-width stable table, the header operation widget, detail commit
+history, shell theming), the org filter (`O`), and the hand-offs (`t` git
+TUI, `o` file manager, `T` shell). Releases are automated: a `v*` tag
+publishes the package. The repo of record is `crueber/coldstorage`; the
 upstream PR to `yetidevworks/drydock` was closed by its author, and the
 relationship is credited, not merged: never push to the upstream.
 
@@ -100,6 +102,20 @@ prevents; read it before touching the area.
     always points at a directory that does not exist yet. Only an
     unresolvable path (no path configured and no root to derive one from)
     fails loudly.
+11. **Re-issued probes carry names** (§13): a watcher re-issue knows only
+    the root, and a probe with empty group/name poisons the fingerprint
+    cache — the gate then serves the nameless row forever, which is how the
+    table once filled with nameless repos. Resolve names from discovery,
+    the cache, then the path, and heal blank cached names on every
+    fingerprint-matched probe.
+12. **Styled chrome truncates by visual width** (§12): a styled string's
+    rune count includes its escape sequences; truncating it by runes once
+    cut the header's fleet counts off while the line had acres of room.
+    Measure with lipgloss.Width, cut with ansi.Truncate.
+13. **The frame fits the terminal** (§12): the view must emit exactly
+    height lines — the renderer keeps the LAST height lines, and one extra
+    line scrolls the header (and every statistic) off the top. frameLines
+    counts every non-data line the view writes.
 
 ## Conventions
 
