@@ -55,18 +55,20 @@ jobs:
       - name: Update Homebrew tap
         env:
           TAP_TOKEN: ${{ secrets.TAP_GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
         run: |
           # The secrets context is not readable in a step's if; the guard
-          # lives here.
+          # lives here. RELEASE_TAG: a dispatch names its tag (the branch
+          # name it carries is not a version).
           if [ -z "$TAP_TOKEN" ]; then
             echo "TAP_GITHUB_TOKEN not set — skipping the tap update"
             exit 0
           fi
           git clone -q https://x-access-token:$TAP_TOKEN@github.com/crueber/homebrew-tap.git tap
-          ./scripts/update-homebrew.sh "$GITHUB_REF_NAME" dist/checksums.txt tap
+          ./scripts/update-homebrew.sh "$RELEASE_TAG" dist/checksums.txt tap
           cd tap
           git config user.name "coldstorage-release"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
-          git diff --cached --quiet || git commit -m "coldstorage ${GITHUB_REF_NAME}"
+          git diff --cached --quiet || git commit -m "coldstorage ${RELEASE_TAG}"
           git push
