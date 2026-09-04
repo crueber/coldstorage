@@ -129,6 +129,7 @@ changelog_files = ["CHANGELOG.md", "CHANGELOG", "changelog.md"]
 default_filters = []            # e.g. ["dirty", "unpushed"]
 default_sort = "activity"
 default_since = ""              # e.g. "1w"
+theme = "auto"                  # auto | dark | light — see §12 color theming
 editor_command = ["zed", "{path}"]              # O
 git_client_command = []         # t — empty = auto-detect (lazygit, gitui)
 file_manager_command = []       # o — empty = auto-detect (superfile, nnn, ranger)
@@ -437,13 +438,20 @@ the dashboard's own sync triggers the sweep itself.
 
 ## 12. The dashboard
 
-Layout: a header (fleet counts, spinner, status message), the table, a
-footer (key hints that change when shift/ctrl are held — kitty keyboard
-protocol, degrading gracefully), and a status line. Columns, left to right,
-each toggleable and reorderable via the `C` picker (persisted per session):
-GROUP, REPO, BRANCH (sized to content), STATE, RELEASE, CHANGES (`!c +s ~u
-?u`), AHEAD, BEHIND, TAG, +TAG (tag age), AGE. Optional: VISIBILITY
-(word/marker variants), STASHES, FETCHED.
+Layout: a header (fleet counts on the left; the operation widget — what the
+background queue is doing right now — right-aligned on the same edge and
+rendered only while work is in flight), the table, a footer (key hints that
+change when shift/ctrl are held — kitty keyboard protocol, degrading
+gracefully), and a status line. The table spans the full terminal width:
+columns take their natural content width, computed over the whole filtered
+fleet (never the scroll window, so scrolling and moving the cursor never
+reflow the grid), and the flexible columns (REPO, BRANCH) absorb or give
+back the difference in proportion to their natural widths, shrinking toward
+their headers before any cell truncates. Columns, left to right, each
+toggleable via the `C` picker (persisted per session): GROUP, REPO,
+BRANCH, STATE, RELEASE, CHANGES (`!c +s ~u ?u`), AHEAD, BEHIND, TAG, +TAG
+(tag age), AGE. Optional: VISIBILITY (word/marker variants), STASHES,
+FETCHED.
 
 Modes: table, detail (`⏎`), help (`?`), column picker (`C`), org manager
 (`A`), org form, owner picker, search (`/`). `q` quits.
@@ -461,7 +469,11 @@ a "probing tool auth…" state (the probe is a network call and MUST NOT run
 on the UI thread), rows cycle through authenticated providers/hosts, the
 owner row opens a fetched picker, the path auto-fills the resolved default,
 and saving is refused — with the reason drawn inside the overlay — until
-the probe lands and validation passes.
+the probe lands and validation passes. While a sync runs, per-row progress
+streams into the operation widget — the header's upper right shows the
+current repo and the done/total count — and the status line is reserved for
+the completion summary; a 500-repo sync must not repaint a sentence sixty
+times a second.
 
 **The preemption contract (the prime directive).** Terminal events live on
 their own channel and are drained first, every iteration; their effects are
@@ -472,6 +484,23 @@ processes, touch the network, or walk the filesystem synchronously. A
 background burst — however large — costs the UI at most one background
 event of latency. Repaints: immediately on user input; on the 250ms tick
 while a sweep/sync runs; about once a second idle.
+
+**Color theming.** The §12 grammar (yellow dirty, cyan unpushed, magenta
+needs-release, red conflict/error, dim clean) is grounded in the shell's
+own scheme, resolved once at startup, before the program asks the terminal
+for its background: `[ui] theme` (`auto` default, `dark`, `light`), then
+Omarchy's active theme (`~/.config/omarchy/current/theme`, read from its
+alacritty.toml or kitty.conf — exact accents, dark/light by background
+luminance), then the terminal's own background (OSC 11 via lipgloss —
+covers iTerm2 and Terminal.app on the mac, where the system appearance
+refines the verdict), then COLORFGBG, then a dark default. Colors live in
+one place; every view renders the same verdict the same way.
+
+**Detail commit history.** The detail view lists the repo's commit titles
+(§7 subjects) below the branch table, filling the window: pages of 100
+titles are fetched off-thread as the owner scrolls (a page lands only for
+the repo it was fetched for), and a repo with no history — or one git
+could not read — says so in one dim line.
 
 Mouse: click selects, wheel moves the selection and scrolls panes.
 

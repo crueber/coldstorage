@@ -407,6 +407,12 @@ func (m model) startOrgSync(idxs []int) (model, tea.Cmd) {
 	}
 
 	m.syncRunning = true
+	if len(idxs) == 1 {
+		m.syncOrg = cfg.Orgs[idxs[0]].Owner + " on " + cfg.Orgs[idxs[0]].Host
+	} else {
+		m.syncOrg = itoa(len(idxs)) + " orgs"
+	}
+	m.syncProgress = "starting…"
 	m.notify("org sync: starting…")
 	cmd := func() tea.Msg {
 		send := func(msg any) {

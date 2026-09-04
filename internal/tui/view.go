@@ -101,22 +101,11 @@ func (m model) tableView() string {
 	}
 
 	cols := visibleColumns(m.cols)
-	// Widths size to the window's rows, not the whole fleet: an off-screen
-	// repo must not change column widths on screen (§12, content-sized).
-	window := rows
-	if len(rows) > rowsHeight {
-		start := m.offset
-		if start > len(rows)-rowsHeight {
-			start = len(rows) - rowsHeight
-		}
-		if start < 0 {
-			start = 0
-		}
-		window = rows[start : start+rowsHeight]
-	}
+	// Widths derive from the whole filtered fleet and the terminal width,
+	// never the scroll window: an off-screen repo and a moved cursor must
+	// not reflow the grid (§12 full-width, stable columns).
 	m.ensureOffset(len(rows), rowsHeight)
-
-	widths := columnWidths(cols, window)
+	widths := columnWidths(cols, rows, m.width)
 
 	b.WriteString(m.tableHeader(cols, widths))
 	b.WriteString("\n")
@@ -154,6 +143,10 @@ func (m *model) ensureOffset(total, rowsHeight int) {
 	}
 }
 
+// headerView is the first line's left side: the title and the fleet counts.
+// The sweep's spinner and progress moved to the operation widget on the
+// line's right edge (§12), so the left half only ever changes when the
+// fleet's verdicts do.
 func (m model) headerView() string {
 	var counts fleetCounts
 	for _, r := range m.rows {
@@ -162,16 +155,7 @@ func (m model) headerView() string {
 
 	var b strings.Builder
 	b.WriteString(styles.title.Render("coldstorage"))
-	b.WriteString(" ")
-	if m.sweeping {
-		b.WriteString(styles.spinner.Render(spinnerFrames[m.spinnerIdx%len(spinnerFrames)]))
-		b.WriteString(" sweeping")
-		if m.sweepTotal > 0 {
-			b.WriteString(" " + itoa(minInt(m.swept, m.sweepTotal)) + "/" + itoa(m.sweepTotal))
-		}
-		b.WriteString(" ")
-	}
-	b.WriteString("repos " + itoa(counts.repos))
+	b.WriteString(" repos " + itoa(counts.repos))
 	if counts.dirty > 0 {
 		b.WriteString(" " + styles.dirty.Render("dirty "+itoa(counts.dirty)))
 	}
@@ -184,7 +168,49 @@ func (m model) headerView() string {
 	if counts.neverFetched > 0 {
 		b.WriteString(" " + styles.dim.Render("unfetched "+itoa(counts.neverFetched)))
 	}
-	return b.String()
+	return m.headerLine(b.String())
+}
+
+// opWidget renders the background operation the queue is running right
+// now — the sync's current repo, the sweep's progress — or "" when the
+// queue is idle, so the header stays quiet until there is something worth
+// saying (§12).
+func (m model) opWidget() string {
+	var label, detail string
+	switch {
+	case m.syncRunning:
+		label, detail = "sync "+m.syncOrg, m.syncProgress
+	case m.sweeping:
+		label = "sweep"
+		if m.sweepTotal > 0 {
+			detail = itoa(minInt(m.swept, m.sweepTotal)) + "/" + itoa(m.sweepTotal)
+		}
+	default:
+		return ""
+	}
+	s := styles.spinner.Render(spinnerFrames[m.spinnerIdx%len(spinnerFrames)]) + " " + label
+	if detail != "" {
+		s += " " + styles.dim.Render(detail)
+	}
+	return s
+}
+
+// headerLine lays one chrome line out across the terminal: the left
+// content, the widget right-aligned on the edge, the empty space between.
+// A widget that no longer fits is dropped — the left half is the load-bearing
+// content.
+func (m model) headerLine(left string) string {
+	w := maxInt(1, m.width)
+	right := m.opWidget()
+	rw := lipgloss.Width(right)
+	if rw == 0 {
+		return truncate(left, w)
+	}
+	pad := w - lipgloss.Width(left) - rw
+	if pad < 1 {
+		return truncate(left, w)
+	}
+	return truncate(left, w-rw-1) + strings.Repeat(" ", pad) + right
 }
 
 // fleetCounts is the §12 header tally.

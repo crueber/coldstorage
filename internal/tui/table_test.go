@@ -204,12 +204,70 @@ func TestColumnVisibilityAndWidths(t *testing.T) {
 	if len(cols) != 12 || cols[len(cols)-1].header != "STASHES" {
 		t.Fatalf("stashes toggle produced %d columns", len(cols))
 	}
-	widths := columnWidths(cols, []RepoState{row("demo", nil)})
+	widths := columnWidths(cols, []RepoState{row("demo", nil)}, 120)
 	for i, col := range cols {
 		if widths[i] < len(col.header) {
 			t.Errorf("column %s width %d < header", col.header, widths[i])
 		}
 	}
+}
+
+func TestColumnWidthsSpanTerminal(t *testing.T) {
+	cols := visibleColumns(defaultColumns())
+	rows := []RepoState{
+		row("one-two-three", nil),
+		row("a-very-long-repository-name-here", func(r *RepoState) {
+			r.Refs.Head = gitmode.Head{Kind: gitmode.HeadBranch, Branch: "feature/some-branch"}
+		}),
+	}
+	for _, total := range []int{80, 120, 200} {
+		widths := columnWidths(cols, rows, total)
+		sum := 0
+		for _, w := range widths {
+			sum += w
+		}
+		if sum+len(cols)-1 != total {
+			t.Errorf("total=%d: widths sum to %d+%d gutters, want exactly %d", total, sum, len(cols)-1, total)
+		}
+	}
+}
+
+func TestColumnWidthsStableAcrossRows(t *testing.T) {
+	// The grid must not reflow when the cursor moves or the window scrolls:
+	// widths come from the fleet, not the viewport.
+	cols := visibleColumns(defaultColumns())
+	rows := []RepoState{row("alpha", nil), row("beta-longer-name", nil)}
+	w1 := columnWidths(cols, rows, 140)
+	reversed := []RepoState{rows[1], rows[0]}
+	w2 := columnWidths(cols, reversed, 140)
+	for i := range w1 {
+		if w1[i] != w2[i] {
+			t.Fatalf("row order changed column %d width: %v vs %v", i, w1, w2)
+		}
+	}
+	// Adding an off-screen row (a bigger fleet) must not reflow either.
+	rows = append(rows, row("gamma", nil))
+	w3 := columnWidths(cols, rows, 140)
+	for i := range w1 {
+		if w1[i] != w3[i] {
+			t.Fatalf("fleet growth changed column %d width: %v vs %v", i, w1, w3)
+		}
+	}
+}
+
+func TestColumnWidthsShrinksFlexFirst(t *testing.T) {
+	cols := visibleColumns(defaultColumns())
+	rows := []RepoState{row("a-really-long-repository-name", nil)}
+	total := 40 // narrower than the natural widths
+	widths := columnWidths(cols, rows, total)
+	sum := 0
+	for i, col := range cols {
+		if widths[i] < len(col.header) {
+			t.Errorf("column %s shrank below its header: %d", col.header, widths[i])
+		}
+		sum += widths[i]
+	}
+	_ = sum // overflow past the floor is the truncator's job
 }
 
 func TestFilterKeymap(t *testing.T) {

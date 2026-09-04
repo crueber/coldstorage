@@ -8,6 +8,10 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	tea "github.com/charmbracelet/bubbletea"
+
+	"github.com/crueber/coldstorage/internal/gitmode"
 )
 
 // detailView renders the selected repo's full state.
@@ -18,7 +22,9 @@ func (m model) detailView() string {
 	}
 	r := rows[m.sel]
 
-	lines := detailLines(r, time.Now())
+	now := time.Now()
+	lines := detailLines(r, now)
+	lines = append(lines, m.historyLines(r, now)...)
 
 	var b strings.Builder
 	b.WriteString(m.headerView())
@@ -43,6 +49,67 @@ func (m model) detailView() string {
 	}
 	b.WriteString(styles.status.Render("j/k scroll · esc back · " + pos))
 	return b.String()
+}
+
+// histPage is how many commit titles one background fetch pulls; histAhead
+// is how close to the loaded end a scroll must come before the next page
+// starts loading.
+const (
+	histPage  = 100
+	histAhead = 15
+)
+
+// historyLines renders the COMMITS section: the repo's recent commit
+// titles (§9), paged in as the owner scrolls. The section exists once the
+// first page lands and keeps growing to the end of the history; a repo
+// with none — or one git could not read — says so in one dim line.
+func (m model) historyLines(r RepoState, now time.Time) []string {
+	if r.Root != m.histRoot {
+		return nil
+	}
+	if m.histErr != nil {
+		return []string{"", styles.header.Render("  COMMITS"), styles.dim.Render("  history unavailable: " + m.histErr.Error())}
+	}
+	if len(m.histCommits) == 0 && !m.histLoading {
+		return []string{"", styles.header.Render("  COMMITS"), styles.dim.Render("  no commits")}
+	}
+	lines := []string{"", styles.header.Render("  COMMITS (newest first)")}
+	for _, c := range m.histCommits {
+		lines = append(lines, "  "+styles.dim.Render(relAge(c.Time, now))+"  "+c.Subject)
+	}
+	if m.histLoading {
+		lines = append(lines, styles.dim.Render("  loading…"))
+	}
+	return lines
+}
+
+// loadHistory fetches the next page of the selected repo's commit history
+// on a command goroutine — the caller never blocks on git (§12).
+func (m model) loadHistory() tea.Cmd {
+	if m.histLoading || m.histDone || m.histRoot == "" {
+		return nil
+	}
+	m.histLoading = true
+	root, skip := m.histRoot, len(m.histCommits)
+	return func() tea.Msg {
+		commits, err := gitmode.Log(root, histPage, skip)
+		return histMsg{root: root, commits: commits, err: err}
+	}
+}
+
+// maybeLoadHistory issues the next page fetch when the owner has scrolled
+// within histAhead lines of the loaded end.
+func (m model) maybeLoadHistory() tea.Cmd {
+	rows := m.visibleRows()
+	if m.sel < 0 || m.sel >= len(rows) || rows[m.sel].Root != m.histRoot {
+		return nil
+	}
+	rowsHeight := maxInt(1, m.height-frameLines)
+	total := len(detailLines(rows[m.sel], time.Now())) + len(m.historyLines(rows[m.sel], time.Now()))
+	if m.detailOff+rowsHeight < total-histAhead {
+		return nil
+	}
+	return m.loadHistory()
 }
 
 // detailLines is the pure renderer for one repo's detail text, so tests can

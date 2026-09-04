@@ -172,6 +172,22 @@ type model struct {
 	spinnerIdx  int
 	warnings    []string
 	lastSweep   time.Time
+
+	// The background operation widget (§12): what the queue is doing right
+	// now, rendered in the header's upper right only while it is doing it.
+	// The sweep and the org sync are the two operations a fleet runs; the
+	// sync's per-row chatter lands here instead of the status line, which
+	// is what made a sync look like the dashboard was blinking.
+	syncOrg      string
+	syncProgress string
+
+	// Detail commit history (§9): the selected repo's subjects, paged in
+	// from gitmode.Log as the owner scrolls.
+	histRoot    string
+	histCommits []gitmode.Commit
+	histLoading bool
+	histDone    bool
+	histErr     error
 }
 
 // newModel assembles the dashboard: cached rows paint the first frame

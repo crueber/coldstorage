@@ -12,7 +12,9 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+
 	"github.com/crueber/coldstorage/internal/config"
+	"github.com/crueber/coldstorage/internal/gitmode"
 )
 
 // tickMsg drives the repaint cadence. The interval is chosen per tick:
@@ -36,6 +38,15 @@ type sweepDoneMsg struct {
 
 // warnMsg surfaces a watcher or cache warning on the status line (§17).
 type warnMsg struct{ err error }
+
+// histMsg delivers one page of the selected repo's commit history (§9).
+// It carries the root it was fetched for: a page that lands after the
+// owner moved to another repo is dropped, not appended to the wrong view.
+type histMsg struct {
+	root    string
+	commits []gitmode.Commit
+	err     error
+}
 
 // tick schedules the next repaint at the cadence the §12 contract fixes.
 func (m model) tick() tea.Cmd {
@@ -118,6 +129,24 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case warnMsg:
 		m.notify("warning: %v", msg.err)
 
+	case histMsg:
+		// A stale page (the owner scrolled on to another repo) is dropped:
+		// the detail view must never show one repo's history under
+		// another's name.
+		if msg.root != m.histRoot {
+			return m, nil
+		}
+		m.histLoading = false
+		if msg.err != nil {
+			m.histErr = msg.err
+			m.histDone = true
+			return m, nil
+		}
+		m.histCommits = append(m.histCommits, msg.commits...)
+		if len(msg.commits) < histPage {
+			m.histDone = true
+		}
+
 	// Org manager messages (§12 org manager). All of them arrive from
 	// command goroutines — the probe, the owner fetch, the sync engine, and
 	// the config write are network or disk work the UI thread never waits on.
@@ -142,17 +171,21 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.orgForm.ownerCursor = 0
 
 	case orgSyncRowMsg:
-		// §11.5: report rows stream into the progress line.
+		// §11.5: report rows stream into the operation widget — the
+		// header's upper right says what the queue is working on right
+		// now. They never touch the status line: a 500-repo sync must not
+		// repaint a sentence sixty times a second (§12).
 		if msg.action != "" {
-			m.notify("org sync: %s %s %s", msg.action, msg.name, msg.detail)
+			m.syncProgress = msg.action + " " + msg.name
 		} else if msg.total > 0 {
-			m.notify("org sync: %s (%d/%d)", msg.name, msg.done, msg.total)
+			m.syncProgress = itoa(minInt(msg.done, msg.total)) + "/" + itoa(msg.total)
 		} else {
-			m.notify("org sync: %s", msg.name)
+			m.syncProgress = msg.name
 		}
 
 	case orgSyncDoneMsg:
 		m.syncRunning = false
+		m.syncOrg, m.syncProgress = "", ""
 		now := time.Now()
 		for _, k := range msg.keys {
 			m.orgLastSync[k] = now
@@ -299,12 +332,14 @@ func (m model) keyColumns(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 func (m model) keyDetail(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 	rowsHeight := m.height - frameLines
+	moved := false
 	switch {
 	case anyKey(key, "esc", "enter", "q"):
 		m.mode = modeTable
 		m.detailOff = 0
 	case anyKey(key, "j", "down"):
 		m.detailOff++
+		moved = true
 	case anyKey(key, "k", "up"):
 		m.detailOff -= 2
 		if m.detailOff < 0 {
@@ -312,11 +347,18 @@ func (m model) keyDetail(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 	case key.Type == tea.KeyPgDown || keyIs(key, "ctrl-d"):
 		m.detailOff += maxInt(1, rowsHeight)
+		moved = true
 	case key.Type == tea.KeyPgUp || keyIs(key, "ctrl-u"):
 		m.detailOff -= maxInt(1, rowsHeight)
 		if m.detailOff < 0 {
 			m.detailOff = 0
 		}
+	}
+	// Scrolling toward the end of what is loaded pulls the next page of
+	// history from git — off-thread, the way every blocking thing happens
+	// here (§12 preemption).
+	if moved {
+		return m, m.maybeLoadHistory()
 	}
 	return m, nil
 }
@@ -343,6 +385,16 @@ func (m model) keyTable(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case key.Type == tea.KeyEnter:
 		m.mode = modeDetail
 		m.detailOff = 0
+		// History is per-repo: a fresh selection starts a fresh stream,
+		// and the first page is fetched off-thread (§12 preemption).
+		if rows := m.visibleRows(); m.sel >= 0 && m.sel < len(rows) && rows[m.sel].Root != m.histRoot {
+			m.histRoot = rows[m.sel].Root
+			m.histCommits = nil
+			m.histDone = false
+			m.histErr = nil
+			m.histLoading = false
+			return m, m.loadHistory()
+		}
 	case keyIs(key, "A"):
 		// §12: the org manager overlay. The cursor keeps its position
 		// between visits so a sync of the same org is one key away.

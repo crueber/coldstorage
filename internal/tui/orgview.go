@@ -78,7 +78,7 @@ func (m model) orgRowsView() []orgRowView {
 // orgsView paints the A overlay (§12).
 func (m model) orgsView() string {
 	var b strings.Builder
-	b.WriteString(styles.title.Render("org manager"))
+	b.WriteString(m.headerLine(styles.title.Render("org manager")))
 	b.WriteString("\n\n")
 
 	rows := m.orgRowsView()
@@ -127,10 +127,6 @@ func (m model) orgsView() string {
 			o.ResolvedProvider(), o.Host, o.Owner)))
 		b.WriteString("\n")
 	}
-	if m.syncRunning {
-		b.WriteString(styles.spinner.Render(m.status))
-		b.WriteString("\n")
-	}
 	b.WriteString(styles.status.Render("j/k move · a add · e edit · x x remove · s sync selected · S sync all enabled · esc close"))
 	return b.String()
 }
@@ -153,9 +149,9 @@ func (m model) orgFormView() string {
 	var b strings.Builder
 	if f.editing >= 0 && f.editing < len(m.cfg.Orgs) {
 		o := m.cfg.Orgs[f.editing]
-		b.WriteString(styles.title.Render("edit org — " + o.Owner + " on " + o.Host))
+		b.WriteString(m.headerLine(styles.title.Render("edit org — " + o.Owner + " on " + o.Host)))
 	} else {
-		b.WriteString(styles.title.Render("add org"))
+		b.WriteString(m.headerLine(styles.title.Render("add org")))
 	}
 	b.WriteString("\n\n")
 
@@ -210,7 +206,7 @@ func (m model) orgFormView() string {
 func (m model) ownersView() string {
 	f := m.orgForm
 	var b strings.Builder
-	b.WriteString(styles.title.Render("pick owner — " + f.provider + " · " + f.host))
+	b.WriteString(m.headerLine(styles.title.Render("pick owner — " + f.provider + " · " + f.host)))
 	b.WriteString("\n\n")
 
 	if f.ownersLoad {

@@ -293,10 +293,13 @@ func changesCell(r RepoState) string {
 }
 
 // column is one table column. cell renders the plain text; style picks the
-// §12 color grammar. optional columns are toggled from the C picker.
+// §12 color grammar. flexible columns absorb the terminal width the fixed
+// columns leave over (§12 full-width layout); optional columns are toggled
+// from the C picker.
 type column struct {
 	id       string
 	header   string
+	flex     bool
 	optional bool
 	cell     func(RepoState) string
 	styled   func(RepoState, string, bool) string
@@ -323,16 +326,16 @@ func (c columnSet) visible(col column) bool {
 
 // columnCatalog is every column, in §12 order.
 var columnCatalog = []column{
-	{"group", "GROUP", false,
+	{"group", "GROUP", false, false,
 		func(r RepoState) string { return r.Group },
 		func(r RepoState, s string, sel bool) string { return s }},
-	{"repo", "REPO", false,
+	{"repo", "REPO", true, false,
 		func(r RepoState) string { return r.Name },
 		func(r RepoState, s string, sel bool) string { return s }},
-	{"branch", "BRANCH", false,
+	{"branch", "BRANCH", true, false,
 		func(r RepoState) string { return r.Refs.Head.Label() },
 		func(r RepoState, s string, sel bool) string { return s }},
-	{"state", "STATE", false,
+	{"state", "STATE", false, false,
 		func(r RepoState) string { return r.State() },
 		func(r RepoState, s string, sel bool) string {
 			if sel {
@@ -340,7 +343,7 @@ var columnCatalog = []column{
 			}
 			return stateStyle(r).Render(s)
 		}},
-	{"release", "RELEASE", false,
+	{"release", "RELEASE", false, false,
 		func(r RepoState) string { return string(r.Release()) },
 		func(r RepoState, s string, sel bool) string {
 			if sel {
@@ -351,13 +354,13 @@ var columnCatalog = []column{
 			}
 			return s
 		}},
-	{"changes", "CHANGES", false,
+	{"changes", "CHANGES", false, false,
 		changesCell,
 		func(r RepoState, s string, sel bool) string { return s }},
-	{"ahead", "AHEAD", false,
+	{"ahead", "AHEAD", false, false,
 		func(r RepoState) string { return numberOrDot(r.Refs.Unpushed()) },
 		func(r RepoState, s string, sel bool) string { return s }},
-	{"behind", "BEHIND", false,
+	{"behind", "BEHIND", false, false,
 		func(r RepoState) string {
 			if r.Refs.FetchedAt.IsZero() {
 				return "?" // never fetched: "?" is a claim nobody checked (§7.2)
@@ -365,7 +368,7 @@ var columnCatalog = []column{
 			return numberOrDot(r.Refs.Unpulled())
 		},
 		func(r RepoState, s string, sel bool) string { return s }},
-	{"tag", "TAG", false,
+	{"tag", "TAG", false, false,
 		func(r RepoState) string {
 			if r.Refs.NewestTag == nil {
 				return "·"
@@ -373,7 +376,7 @@ var columnCatalog = []column{
 			return r.Refs.NewestTag.Name
 		},
 		func(r RepoState, s string, sel bool) string { return s }},
-	{"tagage", "+TAG", false,
+	{"tagage", "+TAG", false, false,
 		func(r RepoState) string {
 			if r.Refs.NewestTag == nil {
 				return "·"
@@ -381,10 +384,10 @@ var columnCatalog = []column{
 			return relAge(r.Refs.NewestTag.At, time.Now())
 		},
 		func(r RepoState, s string, sel bool) string { return s }},
-	{"age", "AGE", false,
+	{"age", "AGE", false, false,
 		func(r RepoState) string { return relAge(r.Activity(), time.Now()) },
 		func(r RepoState, s string, sel bool) string { return s }},
-	{"visibility", "VISIBILITY", true,
+	{"visibility", "VISIBILITY", false, true,
 		func(r RepoState) string {
 			if r.Visibility == nil || r.Visibility.Status != gitmode.VisKnown {
 				return "·"
@@ -392,10 +395,10 @@ var columnCatalog = []column{
 			return string(r.Visibility.Seen)
 		},
 		func(r RepoState, s string, sel bool) string { return s }},
-	{"stashes", "STASHES", true,
+	{"stashes", "STASHES", false, true,
 		func(r RepoState) string { return numberOrDot(r.Refs.Stashes) },
 		func(r RepoState, s string, sel bool) string { return s }},
-	{"fetched", "FETCHED", true,
+	{"fetched", "FETCHED", false, true,
 		func(r RepoState) string { return relAge(r.Refs.FetchedAt, time.Now()) },
 		func(r RepoState, s string, sel bool) string { return s }},
 }
@@ -418,16 +421,77 @@ func visibleColumns(c columnSet) []column {
 	return out
 }
 
-// columnWidths sizes each visible column to its content (§12: BRANCH sized
-// to content), including the header, over the rows that will render.
-func columnWidths(cols []column, rows []RepoState) []int {
-	widths := make([]int, len(cols))
+// columnWidths lays the table out across the full terminal width (§12):
+// every column starts at its natural content width — computed over the
+// whole filtered fleet, never the scroll window, so scrolling and moving
+// the cursor never reflow the grid — and the flexible columns (REPO,
+// BRANCH) then absorb or give back the difference, shared out in
+// proportion to their natural widths. When even the natural widths
+// overflow, the flexible columns shrink toward their headers first and the
+// per-cell truncator takes the rest.
+func columnWidths(cols []column, rows []RepoState, total int) []int {
+	const gutter = 1
+	if total < 1 {
+		total = 1
+	}
+	nat := make([]int, len(cols))
 	for i, col := range cols {
-		widths[i] = lipgloss.Width(col.header)
+		nat[i] = lipgloss.Width(col.header)
 		for _, r := range rows {
-			if w := lipgloss.Width(col.cell(r)); w > widths[i] {
-				widths[i] = w
+			if w := lipgloss.Width(col.cell(r)); w > nat[i] {
+				nat[i] = w
 			}
+		}
+	}
+
+	flexIdx := []int{}
+	fixed, flexNat := 0, 0
+	for i, col := range cols {
+		if col.flex {
+			flexIdx = append(flexIdx, i)
+			flexNat += nat[i]
+		} else {
+			fixed += nat[i]
+		}
+	}
+	gutters := gutter * maxInt(0, len(cols)-1)
+	spare := total - fixed - gutters
+	widths := make([]int, len(cols))
+	copy(widths, nat)
+	if len(flexIdx) == 0 || flexNat == 0 {
+		return widths
+	}
+
+	if spare >= flexNat {
+		// Grow the flexible columns to soak up the empty space, shares in
+		// proportion to natural width, remainder on the last so the table
+		// lands exactly on the terminal edge.
+		extra := spare - flexNat
+		given := 0
+		for n, i := range flexIdx {
+			share := extra * nat[i] / flexNat
+			if n == len(flexIdx)-1 {
+				share = extra - given
+			}
+			given += share
+			widths[i] = nat[i] + share
+		}
+	} else {
+		// Shrink the flexible columns toward their headers before anything
+		// truncates: each gives its proportional share, clamped at its
+		// header width, and the last absorbs whatever the clamps left over.
+		need := flexNat - spare
+		for n, i := range flexIdx {
+			header := lipgloss.Width(cols[i].header)
+			give := need * nat[i] / flexNat
+			if n == len(flexIdx)-1 {
+				give = need
+			}
+			if nat[i]-give < header {
+				give = nat[i] - header
+			}
+			widths[i] = nat[i] - give
+			need -= give
 		}
 	}
 	return widths

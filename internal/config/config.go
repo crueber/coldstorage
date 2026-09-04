@@ -96,6 +96,7 @@ type UIConfig struct {
 	DefaultFilters     []string `toml:"default_filters"`      // e.g. ["dirty", "unpushed"]
 	DefaultSort        string   `toml:"default_sort"`         // e.g. "activity"
 	DefaultSince       string   `toml:"default_since"`        // e.g. "1w"
+	Theme              string   `toml:"theme"`                // auto (default), dark, or light
 	EditorCommand      []string `toml:"editor_command"`       // {path} is replaced by the repo root
 	GitClientCommand   []string `toml:"git_client_command"`   // empty = auto-detect (lazygit, gitui)
 	FileManagerCommand []string `toml:"file_manager_command"` // empty = auto-detect (superfile, nnn, ranger)
@@ -146,6 +147,7 @@ func Default() Config {
 			DefaultFilters:     []string{},
 			DefaultSort:        "activity",
 			DefaultSince:       "",
+			Theme:              "auto",
 			EditorCommand:      []string{"zed", "{path}"},
 			GitClientCommand:   []string{},
 			FileManagerCommand: []string{},
@@ -217,8 +219,7 @@ var sectionKeys = map[string]map[string]bool{
 	"status":     {"untracked": true, "max_files": true, "max_age": true},
 	"remote":     {"fetch": true, "interval": true, "concurrency": true, "timeout": true},
 	"visibility": {"enabled": true, "interval": true, "concurrency": true, "timeout": true},
-	"release":    {"tag_pattern": true, "max_subjects": true, "read_changelog": true, "changelog_files": true},
-	"ui":         {"default_filters": true, "default_sort": true, "default_since": true, "editor_command": true, "git_client_command": true, "file_manager_command": true, "terminal_command": true},
+	"ui":         {"default_filters": true, "default_sort": true, "default_since": true, "theme": true, "editor_command": true, "git_client_command": true, "file_manager_command": true, "terminal_command": true},
 }
 
 var orgKeys = map[string]bool{
