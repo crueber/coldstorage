@@ -115,7 +115,28 @@ func Discover(opts Options) ([]Repo, Stats, error) {
 		}
 		w.scanRoot(abs)
 	}
+	// Roots are walked in sorted order, so the first root to claim a
+	// (group, name) is deterministic.
 	sort.Slice(w.repos, func(i, j int) bool { return w.repos[i].Root < w.repos[j].Root })
+
+	// The same checkout (same group and name) reachable through two roots
+	// must list once: a mis-aimed org registration once cloned a whole
+	// organization into a second tree, and the fleet doubled overnight.
+	// The first root in sorted order wins — the established copy, not the
+	// accident. Case-insensitive: groups are org logins, and logins differ
+	// only in case between registrations.
+	seenProject := make(map[string]struct{}, len(w.repos))
+	unique := w.repos[:0]
+	for _, r := range w.repos {
+		key := strings.ToLower(r.Group) + "\x00" + strings.ToLower(r.Name)
+		if _, dup := seenProject[key]; dup {
+			w.stats.ReposFound--
+			continue
+		}
+		seenProject[key] = struct{}{}
+		unique = append(unique, r)
+	}
+	w.repos = unique
 	return w.repos, w.stats, nil
 }
 

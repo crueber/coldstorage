@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"sort"
+	"strings"
 	"testing"
 )
 
@@ -297,5 +298,43 @@ func TestDeterministicOrder(t *testing.T) {
 				t.Fatalf("sweep %d reordered output:\n got %+v\nwant %+v", i, again, repos)
 			}
 		}
+	}
+}
+
+// The doubled-fleet incident: a mis-aimed org registration cloned a whole
+// organization into a second tree and autoRoot added that tree as a scan
+// root — the fleet doubled overnight. The same checkout reachable through
+// two roots lists once: first root in sorted order wins, case-insensitively.
+func TestDiscoverDedupesSameProjectAcrossRoots(t *testing.T) {
+	a, b := t.TempDir(), t.TempDir()
+	if a > b {
+		a, b = b, a
+	}
+	// Same-named group and repo under both roots; a distinct repo only in
+	// the first root proves the survivor is the first root's copy.
+	checkout(t, filepath.Join(a, "decisiv", "shared"))
+	checkout(t, filepath.Join(a, "decisiv", "only-a"))
+	// Case variant of the group: same org, different login case.
+	checkout(t, filepath.Join(b, "Decisiv", "shared"))
+	checkout(t, filepath.Join(b, "Decisiv", "other"))
+
+	repos, _, err := Discover(Options{Roots: []string{b, a}, MaxDepth: 4})
+	if err != nil {
+		t.Fatal(err)
+	}
+	type key struct{ group, name string }
+	got := map[key]string{}
+	for _, r := range repos {
+		k := key{strings.ToLower(r.Group), strings.ToLower(r.Name)}
+		if prev, dup := got[k]; dup {
+			t.Errorf("duplicate listing: %s and %s", prev, r.Root)
+		}
+		got[k] = r.Root
+	}
+	if len(repos) != 3 {
+		t.Fatalf("repos = %d, want 3 (shared, only-a, other)", len(repos))
+	}
+	if _, ok := got[key{"decisiv", "shared"}]; !ok {
+		t.Error("shared repo missing")
 	}
 }
