@@ -371,17 +371,23 @@ func (m model) tableRow(cols []column, widths []int, r RepoState, selected bool)
 		if col.styled != nil {
 			styled = col.styled(r, plain, selected)
 		}
-		st := stateRowBase(r, selected)
+		st := m.stateRowBase(r, selected)
 		cells = append(cells, st.Render(padTo(styled, widths[i])))
 	}
 	return strings.Join(cells, " ")
 }
 
 // stateRowBase dims everything about a clean row and highlights the
-// selected one; individual columns then re-color their own text.
-func stateRowBase(r RepoState, selected bool) lipgloss.Style {
+// selected one; a group with a configured background carries it on every
+// non-selected row — the selection always outranks the group color, and
+// the §12 verdict grammar stays foreground-only so it reads on any
+// background. Individual columns then re-color their own text.
+func (m model) stateRowBase(r RepoState, selected bool) lipgloss.Style {
 	if selected {
 		return styles.selected
+	}
+	if bg := m.groupColor(r.Group); bg != "" {
+		return lipgloss.NewStyle().Background(bg)
 	}
 	if r.State() == "clean" {
 		return styles.clean

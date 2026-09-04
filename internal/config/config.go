@@ -93,14 +93,15 @@ type ReleaseConfig struct {
 // auto-detect from the usual candidates; terminal_command has no sensible
 // auto-detect, so a placeholder is shipped in the defaults.
 type UIConfig struct {
-	DefaultFilters     []string `toml:"default_filters"`      // e.g. ["dirty", "unpushed"]
-	DefaultSort        string   `toml:"default_sort"`         // e.g. "activity"
-	DefaultSince       string   `toml:"default_since"`        // e.g. "1w"
-	Theme              string   `toml:"theme"`                // auto (default), dark, or light
-	EditorCommand      []string `toml:"editor_command"`       // {path} is replaced by the repo root
-	GitClientCommand   []string `toml:"git_client_command"`   // empty = auto-detect (lazygit, gitui)
-	FileManagerCommand []string `toml:"file_manager_command"` // empty = auto-detect (superfile, nnn, ranger)
-	TerminalCommand    []string `toml:"terminal_command"`     // T: shell in the repo ({path} replaced)
+	DefaultFilters     []string          `toml:"default_filters"`      // e.g. ["dirty", "unpushed"]
+	DefaultSort        string            `toml:"default_sort"`         // e.g. "activity"
+	DefaultSince       string            `toml:"default_since"`        // e.g. "1w"
+	Theme              string            `toml:"theme"`                // auto (default), dark, or light
+	EditorCommand      []string          `toml:"editor_command"`       // {path} is replaced by the repo root
+	GitClientCommand   []string          `toml:"git_client_command"`   // empty = auto-detect (lazygit, gitui)
+	FileManagerCommand []string          `toml:"file_manager_command"` // empty = auto-detect (superfile, nnn, ranger)
+	TerminalCommand    []string          `toml:"terminal_command"`     // T: shell in the repo ({path} replaced)
+	GroupColors        map[string]string `toml:"group_colors"`         // group name -> row background (hex or ANSI name)
 }
 
 // Default returns the configuration a fresh install runs with, matching
@@ -152,6 +153,7 @@ func Default() Config {
 			GitClientCommand:   []string{},
 			FileManagerCommand: []string{},
 			TerminalCommand:    []string{},
+			GroupColors:        map[string]string{},
 		},
 		Orgs: []OrgConfig{},
 	}
@@ -226,7 +228,7 @@ var sectionKeys = map[string]map[string]bool{
 	"remote":     {"fetch": true, "interval": true, "concurrency": true, "timeout": true},
 	"release":    {"tag_pattern": true, "max_subjects": true, "read_changelog": true, "changelog_files": true},
 	"visibility": {"enabled": true, "interval": true, "concurrency": true, "timeout": true},
-	"ui":         {"default_filters": true, "default_sort": true, "default_since": true, "theme": true, "editor_command": true, "git_client_command": true, "file_manager_command": true, "terminal_command": true},
+	"ui":         {"default_filters": true, "default_sort": true, "default_since": true, "theme": true, "group_colors": true, "editor_command": true, "git_client_command": true, "file_manager_command": true, "terminal_command": true},
 }
 
 var orgKeys = map[string]bool{

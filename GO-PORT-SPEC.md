@@ -503,6 +503,12 @@ covers iTerm2 and Terminal.app on the mac, where the system appearance
 refines the verdict), then COLORFGBG, then a dark default. Colors live in
 one place; every view renders the same verdict the same way.
 
+**Group colors.** `[ui.group_colors]` maps a group name (matched
+case-insensitively; groups are org logins) to a row background — a hex
+color or an ANSI name. Rows in a colored group render with that background
+across the full table width; the selection highlight outranks it, and the
+§12 verdict colors stay foreground-only so they read on any background.
+
 **Detail commit history.** The detail view lists the repo's commit titles
 (§7 subjects) below the branch table, filling the window: pages of 100
 titles are fetched off-thread as the owner scrolls (a page lands only for

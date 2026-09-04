@@ -94,6 +94,10 @@ git_client_command = []              # t — empty = auto-detect (lazygit, gitui
 file_manager_command = []            # o — empty = auto-detect (spf, yazi, ranger, nnn)
 terminal_command = []                # T — empty = $SHELL; {path} is the repo root
 
+[ui.group_colors]
+decisiv = "#1f2d3d"                  # any group name; hex or ANSI names (red, blue, bright-cyan, …)
+crueber = "blue"
+
 [[orgs]]
 provider = "github"                  # github | gitlab | gitea
 host = "github.com"
@@ -164,6 +168,15 @@ Colors follow your shell, not a palette this tool invented. With `theme =
 Set `[ui] theme = "dark"|"light"` to pin it. The verdict grammar — yellow
 dirty, cyan unpushed, magenta needs-release, red conflicts, dim clean — is
 the same in every theme.
+
+### Group colors
+
+Any group can carry a row background: `[ui.group_colors]` maps a group
+name (case-insensitive — groups are org logins) to a hex color or an ANSI
+name (`red`, `blue`, `bright-cyan`, …). Rows in that group render with
+that background across the full table width; the selection highlight
+outranks it, and the verdict colors stay foreground-only so they read on
+any background. The selection highlight always wins.
 
 ## Repo sync
 
