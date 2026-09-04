@@ -67,7 +67,10 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git tag -a "$next" -m "$next — automatic release from ${SHA::7}" "$SHA"
           if [ -n "$PUSH_TOKEN" ]; then
-            git push "https://x-access-token:$PUSH_TOKEN@github.com/crueber/coldstorage.git" "$next"
+            # The username must be the account, not x-access-token: pushes
+            # under an app identity do not trigger workflows, and the whole
+            # point of this push is to fire the release workflow.
+            git push "https://crueber:$PUSH_TOKEN@github.com/crueber/coldstorage.git" "$next"
           else
             echo "warning: no PAT — pushing with GITHUB_TOKEN, which will NOT trigger the release workflow"
             git push origin "$next"
