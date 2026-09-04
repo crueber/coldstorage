@@ -12,6 +12,7 @@ package tui
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"sort"
 	"sync"
 	"sync/atomic"
@@ -48,10 +49,11 @@ type engine struct {
 	sweeping atomic.Bool
 	probing  atomic.Int64
 
-	mu      sync.Mutex
-	cache   map[string]RepoState // last good row per root, for the fingerprint gate
-	closing bool
-	watcher *watcher.Watcher
+	mu         sync.Mutex
+	cache      map[string]RepoState      // last good row per root, for the fingerprint gate
+	discovered map[string]discovery.Repo // the last sweep's group/name per root
+	closing    bool
+	watcher    *watcher.Watcher
 }
 
 // newEngine builds the engine over the config and the startup cache. The
@@ -82,11 +84,12 @@ func newEngine(cfg config.Config, cacheDir string, cache map[string]RepoState) *
 			Untracked: gitmode.UntrackedMode(cfg.Status.Untracked),
 			MaxFiles:  cfg.Status.MaxFiles,
 		},
-		gate:    NewGate(30 * time.Second),
-		sem:     make(chan struct{}, concurrency),
-		results: make(chan RepoState, maxBatch*2),
-		quit:    make(chan struct{}),
-		cache:   map[string]RepoState{},
+		gate:       NewGate(30 * time.Second),
+		sem:        make(chan struct{}, concurrency),
+		results:    make(chan RepoState, maxBatch*2),
+		quit:       make(chan struct{}),
+		cache:      map[string]RepoState{},
+		discovered: map[string]discovery.Repo{},
 	}
 	for root, row := range cache {
 		if row.Err == nil {
@@ -187,6 +190,14 @@ func (e *engine) runSweep(force bool) {
 	if err != nil {
 		e.sendMsg(warnMsg{err: err})
 	}
+	// The watcher re-issues probes by root alone; this table is where
+	// their display names come from (§13).
+	e.mu.Lock()
+	for _, repo := range repos {
+		e.discovered[repo.Root] = repo
+	}
+	e.mu.Unlock()
+
 	e.sendMsg(sweepPhaseMsg{phase: "discovered", total: len(repos)})
 
 	if e.watchOn {
@@ -228,6 +239,23 @@ func (e *engine) probe(root, group, name string, force bool) {
 	e.mu.Unlock()
 
 	if !force && haveCached && cached.Fingerprint == gitmode.Fingerprint(root) {
+		// A watcher re-issue that ran before a repo had a cache entry once
+		// cached blank display names — and the fingerprint gate would then
+		// serve the blank row forever, which is how the table filled with
+		// nameless repos. Heal from this sweep's discovery, in the cache
+		// too, so the repair survives a save.
+		if cached.Group == "" || cached.Name == "" {
+			e.mu.Lock()
+			fixed := e.cache[root]
+			if group != "" {
+				fixed.Group, cached.Group = group, group
+			}
+			if name != "" {
+				fixed.Name, cached.Name = name, name
+			}
+			e.cache[root] = fixed
+			e.mu.Unlock()
+		}
 		e.sendResult(cached)
 		return
 	}
@@ -291,7 +319,8 @@ func (e *engine) probeAsync(root, group, name string) {
 		for len(pending) > 0 {
 			var next []string
 			for _, r := range pending {
-				e.probe(r, e.groupOf(r), e.nameOf(r), true)
+				group, name := e.displayNames(r)
+				e.probe(r, group, name, true)
 				next = append(next, e.gate.Release(r, time.Now())...)
 			}
 			pending = next
@@ -411,23 +440,23 @@ func (e *engine) sendMsg(msg any) {
 	}
 }
 
-// groupOf and nameOf recover display names for a re-issued pending root.
-func (e *engine) groupOf(root string) string {
+// displayNames recovers a root's display names for a watcher re-issue,
+// which knows only the path: the last discovery walk is authoritative, the
+// cache next, and a checkout that has never been swept (a fresh clone
+// firing its first watcher event) falls back to the path itself — the base
+// name for the repo, its parent directory for the group — which the next
+// sweep corrects if the checkout is nested. An empty name here is how the
+// table once filled with nameless rows.
+func (e *engine) displayNames(root string) (group, name string) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	if row, ok := e.cache[root]; ok {
-		return row.Group
+	if r, ok := e.discovered[root]; ok {
+		return r.Group, r.Name
 	}
-	return ""
-}
-
-func (e *engine) nameOf(root string) string {
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	if row, ok := e.cache[root]; ok {
-		return row.Name
+	if row, ok := e.cache[root]; ok && row.Group != "" && row.Name != "" {
+		return row.Group, row.Name
 	}
-	return ""
+	return filepath.Base(filepath.Dir(root)), filepath.Base(root)
 }
 
 // rootsOf projects discovered repos to their paths.

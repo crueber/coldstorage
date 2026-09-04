@@ -12,6 +12,8 @@ import (
 	"time"
 
 	"github.com/crueber/coldstorage/internal/config"
+	"github.com/crueber/coldstorage/internal/discovery"
+	"github.com/crueber/coldstorage/internal/gitmode"
 )
 
 func TestNotifyStampsTTL(t *testing.T) {
@@ -108,4 +110,51 @@ func execGit(t *testing.T, args ...string) error {
 		t.Fatalf("git %v: %v: %s", args, err, out)
 	}
 	return nil
+}
+
+// The nameless-rows incident: a watcher re-issue for a repo with no cache
+// entry probed with empty display names, cached the blank row, and the
+// fingerprint gate served it forever.
+
+func TestDisplayNamesFallsBackToPath(t *testing.T) {
+	eng := newEngine(config.Default(), t.TempDir(), nil)
+	group, name := eng.displayNames("/home/u/dev/github.com/crueber/walhub")
+	if group != "crueber" || name != "walhub" {
+		t.Errorf("path fallback = (%q, %q), want (crueber, walhub)", group, name)
+	}
+}
+
+func TestDisplayNamesPrefersDiscoveryOverCache(t *testing.T) {
+	eng := newEngine(config.Default(), t.TempDir(), nil)
+	root := "/r/crueber/alpha"
+	eng.mu.Lock()
+	eng.discovered[root] = discovery.Repo{Root: root, Group: "crueber", Name: "alpha"}
+	eng.cache[root] = RepoState{Root: root, Group: "stale", Name: "stale"}
+	eng.mu.Unlock()
+	group, name := eng.displayNames(root)
+	if group != "crueber" || name != "alpha" {
+		t.Errorf("discovery must outrank the cache: (%q, %q)", group, name)
+	}
+}
+
+func TestProbeHealsBlankCachedNames(t *testing.T) {
+	eng := newEngine(config.Default(), t.TempDir(), nil)
+	root := filepath.Join(t.TempDir(), "repo")
+	if err := execGit(t, "init", "-q", root); err != nil {
+		t.Fatal(err)
+	}
+	// Seed the poisoned row with the repo's CURRENT fingerprint so the
+	// gate matches and the heal path (not a full re-probe) runs.
+	eng.mu.Lock()
+	eng.cache[root] = RepoState{Root: root, Fingerprint: gitmode.Fingerprint(root)}
+	eng.mu.Unlock()
+
+	// The sent row is the healed cache row (collect consumes the channel).
+	eng.probe(root, "crueber", "repo", false) // fingerprint match: no git spawn
+	eng.mu.Lock()
+	cached := eng.cache[root]
+	eng.mu.Unlock()
+	if cached.Group != "crueber" || cached.Name != "repo" {
+		t.Fatalf("cache not healed: %q/%q", cached.Group, cached.Name)
+	}
 }
