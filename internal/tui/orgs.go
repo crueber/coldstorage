@@ -595,9 +595,42 @@ func (m model) keyOrgForm(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 	row := rows[f.cursor]
 
+	// Arrows move between rows everywhere. On the text rows — owner, path,
+	// login — the vim keys are TEXT: typing "/home/user" once cycled the
+	// row backward on the h and forward on the j and l, which is how the
+	// org form ended up unable to type a path. Free text there, enter as
+	// the row's action, ctrl-s to save from anywhere.
+	textRow := row.id == "owner" || row.id == "path" || row.id == "login"
+
 	switch {
 	case keyIs(key, "ctrl-s"):
 		return m.saveOrg()
+	case key.Type == tea.KeyUp:
+		f.cursor = (f.cursor - 1 + len(rows)) % len(rows)
+		return m, nil
+	case key.Type == tea.KeyDown:
+		f.cursor = (f.cursor + 1) % len(rows)
+		return m, nil
+	}
+
+	if textRow {
+		switch {
+		case key.Type == tea.KeyEnter:
+			if row.id == "owner" {
+				// The owner's enter opens the fetched picker; typing only
+				// narrows it.
+				return m.formActivate(row)
+			}
+			f.cursor = (f.cursor + 1) % len(rows)
+		case key.Type == tea.KeyBackspace:
+			m.formTypeInto(row, "")
+		case key.Type == tea.KeyRunes || key.Type == tea.KeySpace:
+			m.formTypeInto(row, keyString(key))
+		}
+		return m, nil
+	}
+
+	switch {
 	case anyKey(key, "j", "down"):
 		f.cursor = (f.cursor + 1) % len(rows)
 	case anyKey(key, "k", "up"):
@@ -606,12 +639,6 @@ func (m model) keyOrgForm(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.formActivate(row)
 	case anyKey(key, "h", "left"):
 		return m.formCycle(row, -1)
-	case key.Type == tea.KeyBackspace:
-		m.formTypeInto(row, "")
-	default:
-		if key.Type == tea.KeyRunes || key.Type == tea.KeySpace {
-			m.formTypeInto(row, keyString(key))
-		}
 	}
 	return m, nil
 }
