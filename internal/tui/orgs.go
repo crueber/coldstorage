@@ -213,6 +213,25 @@ func pathUnderRoots(p string, roots []string) bool {
 	return false
 }
 
+// orgCandidate materializes the config a save would write: the form's
+// registration lands (replacing its old self when editing), autoRoot wires
+// the checkout directory, and any registration covering a directory this
+// one already covers is removed — the older one loses (§11.4), so a
+// directory can never be double-listed by an add.
+func (m model) orgCandidate() config.Config {
+	f := &m.orgForm
+	org := f.orgValue()
+	cand := m.cfg
+	if f.editing >= 0 && f.editing < len(cand.Orgs) {
+		cand.Orgs[f.editing] = org
+	} else {
+		cand.Orgs = append(cand.Orgs, org)
+	}
+	autoRoot(&cand, org)
+	cand.DedupeOrgs()
+	return cand
+}
+
 // autoRoot implements the §11.4 wiring rule: an org whose checkout path sits
 // under no root gets its path's parent added to roots, so clones land on the
 // dashboard as a group with no manual config edit. The root is stored
@@ -281,14 +300,7 @@ func (m model) saveOrg() (model, tea.Cmd) {
 		}
 	}
 
-	org := f.orgValue()
-	cand := m.cfg
-	if f.editing >= 0 && f.editing < len(cand.Orgs) {
-		cand.Orgs[f.editing] = org
-	} else {
-		cand.Orgs = append(cand.Orgs, org)
-	}
-	autoRoot(&cand, org)
+	cand := m.orgCandidate()
 
 	// The gate: OrgProblems refuses the save, the overlay renders why. This
 	// org's problems lead, so one typo is not buried under pre-existing
@@ -308,9 +320,10 @@ func (m model) saveOrg() (model, tea.Cmd) {
 		return m, nil
 	}
 
-	note := "org saved: " + org.Owner + " on " + org.Host
+	saved := f.orgValue()
+	note := "org saved: " + saved.Owner + " on " + saved.Host
 	if f.editing >= 0 {
-		note = "org updated: " + org.Owner + " on " + org.Host
+		note = "org updated: " + saved.Owner + " on " + saved.Host
 	}
 	f.refusal = ""
 	return m, writeOrgConfig(cand, note, true)

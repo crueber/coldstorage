@@ -200,6 +200,12 @@ func Load(path string) (Config, error) {
 		orgs = append(orgs, org)
 	}
 	cfg.Orgs = orgs
+
+	// §11.4: registrations that cover the same checkout directory are
+	// collapsed on load, the older one removed, so nothing double-lists
+	// after a hand-edited file or a config that predates the dedupe.
+	cfg.DedupeRoots()
+	cfg.DedupeOrgs()
 	return cfg, nil
 }
 

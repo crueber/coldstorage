@@ -184,3 +184,70 @@ func TestOrgProblemsKinds(t *testing.T) {
 		}
 	})
 }
+
+// §11.4: an org added over a directory another registration covers
+// replaces the older one — a directory must never be double-listed.
+func TestDedupeOrgsKeepsNewest(t *testing.T) {
+	c := Default()
+	c.Roots = []string{"~/dev"}
+	c.Orgs = []OrgConfig{
+		{Provider: "github", Host: "github.com", Owner: "acme", Path: "~/dev/acme"},
+		{Provider: "github", Host: "github.com", Owner: "other", Path: "~/dev/other"},
+		{Provider: "github", Host: "github.com", Owner: "acme-v2", Path: "~/dev/acme"}, // covers org 0
+	}
+	if changed := c.DedupeOrgs(); !changed {
+		t.Fatal("dedupe must report the dropped registration")
+	}
+	if len(c.Orgs) != 2 {
+		t.Fatalf("orgs = %d, want 2", len(c.Orgs))
+	}
+	if c.Orgs[0].Owner != "acme-v2" {
+		t.Errorf("survivor = %q, want the newer acme-v2", c.Orgs[0].Owner)
+	}
+	if c.Orgs[1].Owner != "other" {
+		t.Errorf("unrelated org must survive: %+v", c.Orgs[1])
+	}
+	// Idempotent.
+	if c.DedupeOrgs() {
+		t.Error("a second pass must change nothing")
+	}
+}
+
+func TestDedupeOrgsKeepsUnresolvable(t *testing.T) {
+	c := Default() // roots = ~/Projects
+	c.Orgs = []OrgConfig{
+		{Provider: "github", Host: "github.com", Owner: "orphan"},             // no path, resolves to root/owner
+		{Provider: "gitea", Host: "gitea.example", Owner: "orphan", Path: ""}, // same derived path
+	}
+	c.DedupeOrgs()
+	if len(c.Orgs) != 1 || c.Orgs[0].Provider != "gitea" {
+		t.Errorf("derived-path duplicates must collapse to the newest: %+v", c.Orgs)
+	}
+}
+
+func TestLoadDedupesOrgsAndRoots(t *testing.T) {
+	path := writeConfig(t, `
+roots = ["~/dev", "~/dev"]
+[[orgs]]
+host = "github.com"
+owner = "acme"
+path = "~/dev/acme"
+[[orgs]]
+host = "github.com"
+owner = "acme"
+path = "~/dev/acme"
+`)
+	c, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(c.Roots) != 1 {
+		t.Errorf("roots = %v, want the duplicate dropped", c.Roots)
+	}
+	if len(c.Orgs) != 1 {
+		t.Fatalf("orgs = %d, want 1", len(c.Orgs))
+	}
+	if c.Orgs[0].Owner != "acme" {
+		t.Errorf("survivor = %+v", c.Orgs[0])
+	}
+}

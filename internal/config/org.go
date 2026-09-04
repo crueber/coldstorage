@@ -108,6 +108,65 @@ func (o OrgConfig) ResolvedPath(c Config) string {
 	return filepath.Join(Expand(c.Roots[0]), o.Owner)
 }
 
+// DedupeOrgs removes registrations that cover a checkout directory another
+// registration already covers, keeping the LAST occurrence — the newer
+// registration wins, the older is the one removed (§11.4). Without it, an
+// org added over an existing directory double-lists the directory: the sync
+// would walk it once per registration. Orgs with no resolvable path are
+// left alone. It reports whether anything was dropped.
+func (c *Config) DedupeOrgs() bool {
+	type slot struct {
+		org OrgConfig
+	}
+	kept := make([]slot, 0, len(c.Orgs))
+	byPath := make(map[string]int)
+	changed := false
+	for _, o := range c.Orgs {
+		p := o.ResolvedPath(*c)
+		if p == "" {
+			kept = append(kept, slot{org: o})
+			continue
+		}
+		if i, dup := byPath[p]; dup {
+			kept[i].org = o
+			changed = true
+			continue
+		}
+		byPath[p] = len(kept)
+		kept = append(kept, slot{org: o})
+	}
+	if changed {
+		orgs := make([]OrgConfig, len(kept))
+		for i, s := range kept {
+			orgs[i] = s.org
+		}
+		c.Orgs = orgs
+	}
+	return changed
+}
+
+// DedupeRoots removes exact duplicate scan roots — the same directory after
+// ~ expansion listed twice walks the tree twice for nothing. It reports
+// whether anything was dropped.
+func (c *Config) DedupeRoots() bool {
+	seen := make(map[string]bool)
+	kept := make([]string, 0, len(c.Roots))
+	changed := false
+	for _, r := range c.Roots {
+		e := Expand(r)
+		if seen[e] {
+			changed = true
+			continue
+		}
+		seen[e] = true
+		kept = append(kept, r)
+	}
+	if changed {
+		c.Roots = kept
+	}
+	return changed
+}
+
 // OrgProblems validates the org registrations of §11.4 and §4: empty
 // owner or host, a provider that cannot be inferred, duplicate
 // registrations, and nested checkout paths. It reports problems as
