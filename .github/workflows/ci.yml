@@ -1,0 +1,31 @@
+# CI: the gates on every push and PR. The release workflow re-runs them
+# before publishing, but a red main branch should be visible the moment it
+# lands, not the first time someone tags.
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  gates:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Gates (gofmt, vet, tests)
+        run: |
+          unformatted=$(gofmt -l .)
+          if [ -n "$unformatted" ]; then
+            echo "gofmt needs to run on:" $unformatted; exit 1
+          fi
+          go vet ./...
+          go test -count=1 ./...

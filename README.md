@@ -50,12 +50,19 @@ organizational trees side by side — and asks four things of the tool:
    placed against the repo's own tagging history. An unfetched repo says
    `unfetched` instead of inventing an ahead/behind count.
 
+
 ## Install
 
-Requirements: Go 1.22+, `git`. Optional: [`gh`](https://cli.github.com/),
-[`glab`](https://gitlab.com/gitlab-org/cli), or
-[`tea`](https://gitea.com/gitea/tea) for org sync — coldstorage rides your
-existing CLI logins and never reads or stores provider tokens.
+Download a release package from the
+[releases page](https://github.com/crueber/coldstorage/releases) — a
+tarball per platform (zip on Windows) with the binary, the docs, and a
+`checksums.txt`:
+
+```sh
+curl -fsSL https://github.com/crueber/coldstorage/releases/latest/download/coldstorage_<version>_Linux_x86_64.tar.gz | tar xz
+```
+
+Or let Go build it:
 
 ```sh
 go install github.com/crueber/coldstorage/cmd/coldstorage@latest
@@ -192,6 +199,13 @@ and when they disagree the spec wins or is amended deliberately. `AGENTS.md`
 carries the invariants (each with the incident that produced it) and the
 dependency policy: tiny, no cgo, every new dependency justified in its
 commit.
+
+**Releases** are automated: pushing a `v*` tag runs the gates and publishes
+the release package (six cross-compiled binaries — Linux, macOS, Windows on
+x86_64 and arm64 — as archives with checksums and a changelog) via
+GoReleaser. The config is `.goreleaser.yaml`; the pipeline is
+`.github/workflows/release.yml`. Ordinary pushes get the same gates on CI
+(`.github/workflows/ci.yml`).
 
 ## Credits
 

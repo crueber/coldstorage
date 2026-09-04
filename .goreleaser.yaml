@@ -1,0 +1,52 @@
+# The release package (goreleaser v2): one tag, cross-compiled static
+# binaries for the platforms the owner actually runs, an archive per
+# platform carrying the docs, a checksum file, and a changelog assembled
+# from the commit log. CGO stays off everywhere — the whole point of
+# shelling out to git/gh/glab/tea is that nothing here links C.
+version: 2
+
+project_name: coldstorage
+
+builds:
+  - id: coldstorage
+    main: ./cmd/coldstorage
+    binary: coldstorage
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w -X main.version={{.Version}} -X main.commit={{.Commit}} -X main.date={{.Date}}
+
+archives:
+  - id: coldstorage
+    formats: [tar.gz]
+    name_template: >-
+      {{ .ProjectName }}_{{ .Version }}_
+      {{- if eq .Os "darwin" }}macOS{{- else }}{{ title .Os }}{{ end }}_
+      {{- if eq .Arch "amd64" }}x86_64{{- else }}{{ .Arch }}{{ end }}
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+    files:
+      - README.md
+      - LICENSE
+      - GO-PORT-SPEC.md
+
+checksum:
+  name_template: checksums.txt
+
+changelog:
+  use: git
+  filters:
+    exclude:
+      - "^Merge pull request"
+      - "^Merge branch"
+
+release:
+  draft: false

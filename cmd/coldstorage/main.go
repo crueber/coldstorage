@@ -1,6 +1,8 @@
 // coldstorage — the dashboard (GO-PORT-SPEC.md §12). The binary has no
 // subcommands: invoking it opens the TUI over the configured fleet. The only
-// flags are the config override and a hidden test affordance.
+// flags are the config override, a version stamp, and a hidden test
+// affordance. version/commit/date are stamped at release time by goreleaser
+// (ldflags); a build from source reports "dev".
 package main
 
 import (
@@ -15,10 +17,22 @@ import (
 	"github.com/crueber/coldstorage/internal/tui"
 )
 
+var (
+	version = "dev"
+	commit  = "none"
+	date    = "unknown"
+)
+
 func main() {
 	configPath := flag.String("config", "", "path to config.toml (default: the platform config dir)")
 	quitAfter := flag.Duration("quit-after", 0, "hidden test affordance: exit cleanly after this duration")
+	showVersion := flag.Bool("version", false, "print the version and exit")
 	flag.Parse()
+
+	if *showVersion {
+		fmt.Printf("coldstorage %s (commit %s, built %s)\n", version, commit, date)
+		return
+	}
 
 	paths, err := config.ResolvePaths()
 	if err != nil {

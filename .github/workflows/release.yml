@@ -1,0 +1,44 @@
+# The release pipeline: a v* tag assembles the release package (six
+# cross-compiled binaries, archives, checksums, changelog) and publishes it
+# as a GitHub Release. The gates run first — a release built on a red tree
+# is not a release.
+name: release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # The changelog is assembled from git history; a shallow clone
+          # would produce an empty one.
+          fetch-depth: 0
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Gates (gofmt, vet, tests)
+        run: |
+          unformatted=$(gofmt -l .)
+          if [ -n "$unformatted" ]; then
+            echo "gofmt needs to run on:" $unformatted; exit 1
+          fi
+          go vet ./...
+          go test -count=1 ./...
+
+      - uses: goreleaser/goreleaser-action@v6
+        with:
+          distribution: goreleaser
+          version: "~> v2"
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
