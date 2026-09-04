@@ -11,6 +11,10 @@ func fingerprintRepo(t *testing.T) string {
 	t.Helper()
 	root := t.TempDir()
 	gitCmd(t, root, "init", "-q", "-b", "main")
+	// gc.auto=0: a commit auto-triggers background maintenance, whose
+	// objects/maintenance.lock appears and vanishes under any test that
+	// reads .git — the race that once failed this suite in CI.
+	gitCmd(t, root, "config", "gc.auto", "0")
 	writeFile(t, root, "tracked.txt", "one")
 	gitCmd(t, root, "add", ".")
 	gitCmd(t, root, "commit", "-q", "-m", "one")
@@ -126,6 +130,9 @@ func copyTree(t *testing.T, src, dst string) {
 		}
 		data, err := os.ReadFile(s)
 		if err != nil {
+			if os.IsNotExist(err) {
+				continue // vanished mid-copy (a gc lock) — not fingerprint state
+			}
 			t.Fatal(err)
 		}
 		if err := os.WriteFile(d, data, 0o644); err != nil {
