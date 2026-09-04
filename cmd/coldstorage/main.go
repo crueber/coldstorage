@@ -9,6 +9,8 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"runtime/debug"
+	"strings"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -30,7 +32,8 @@ func main() {
 	flag.Parse()
 
 	if *showVersion {
-		fmt.Printf("coldstorage %s (commit %s, built %s)\n", version, commit, date)
+		v, c, d := stamped(version, commit, date)
+		fmt.Printf("coldstorage %s (commit %s, built %s)\n", v, c, d)
 		return
 	}
 
@@ -90,4 +93,43 @@ func main() {
 		os.Exit(1)
 	}
 	eng.Close()
+}
+
+// stamped fills unstamped slots from the build info that go install records
+// for versioned module installs: without it, a `go install ...@v1.0.9`
+// binary reports "dev" and every update looks like it did not take. Builds
+// inside a git worktree also carry the revision and its time.
+func stamped(version, commit, date string) (string, string, string) {
+	if version != "dev" && commit != "none" && date != "unknown" {
+		return version, commit, date
+	}
+	bi, ok := debug.ReadBuildInfo()
+	if !ok {
+		return version, commit, date
+	}
+	return stampedFrom(version, commit, date, bi)
+}
+
+// stampedFrom is the fill logic, split for tests: the test binary has its
+// own build info, so the filler takes it as a value.
+func stampedFrom(version, commit, date string, bi *debug.BuildInfo) (string, string, string) {
+	if version == "dev" && bi.Main.Version != "" && bi.Main.Version != "(devel)" {
+		version = strings.TrimPrefix(bi.Main.Version, "v")
+	}
+	for _, s := range bi.Settings {
+		switch s.Key {
+		case "vcs.revision":
+			if commit == "none" && s.Value != "" {
+				commit = s.Value
+				if len(commit) > 7 {
+					commit = commit[:7]
+				}
+			}
+		case "vcs.time":
+			if date == "unknown" && s.Value != "" {
+				date = s.Value
+			}
+		}
+	}
+	return version, commit, date
 }
