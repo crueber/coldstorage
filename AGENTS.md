@@ -112,3 +112,9 @@ prevents; read it before touching the area.
   column grammar (spec §12) — lipgloss styling, not ASCII improvisation.
 - Owner runs fleets of 500–1000 repos; anything that scales worse than
   O(changed repos) is a bug.
+- **Releases** are automated, never hand-assembled: push a `v*` tag and
+  `.github/workflows/release.yml` re-runs the gates and publishes the
+  package (six cross-compiled binaries via GoReleaser, `.goreleaser.yaml`
+  is the contract). Ordinary pushes get the same gates on CI. Version
+  strings come from ldflags stamping `main.version/commit/date` — never
+  edit them into the source.
