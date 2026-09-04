@@ -10,6 +10,8 @@
 package tui
 
 import (
+	"fmt"
+	"os"
 	"sort"
 	"sync"
 	"sync/atomic"
@@ -164,6 +166,16 @@ func (e *engine) runSweep(force bool) {
 	// half-updated config. The sweep keeps the config it started with.
 	cfg := e.cfgSnapshot()
 
+	// A scan root that does not exist is silent at the filesystem level and
+	// reads as "the dashboard is broken" — the typo'd-root incident left a
+	// 548-repo fleet invisible because one character was missing. Surface
+	// every missing root on every sweep; the message is cheap and the
+	// alternative is a blank screen with no explanation.
+	for _, root := range expandRoots(cfg.Roots) {
+		if _, err := os.Stat(root); os.IsNotExist(err) {
+			e.sendMsg(warnMsg{err: fmt.Errorf("scan root %s does not exist", root)})
+		}
+	}
 	repos, _, err := discovery.Discover(discovery.Options{
 		Roots:             expandRoots(cfg.Roots),
 		MaxDepth:          cfg.MaxDepth,

@@ -51,9 +51,10 @@ func PlanSync(src Source, opts Opts, diskFn func(string) []string, list ListFn) 
 	if opts.Path == "" {
 		return SyncPlan{}, fmt.Errorf("org %q: no checkout path configured", src.Owner)
 	}
-	if _, err := os.Stat(opts.Path); err != nil {
-		return SyncPlan{}, fmt.Errorf("org %q: checkout path %s: %w", src.Owner, opts.Path, err)
-	}
+	// A checkout path that does not exist yet is the NORMAL state for a new
+	// registration: creating it by cloning is the whole point of the first
+	// sync. Only an unresolvable path (no configured path AND no roots to
+	// derive one from) is an error. The Rust original had this same rule.
 	if list == nil {
 		list = ListRepos
 	}
@@ -142,7 +143,11 @@ func cloneOne(src Source, r Repo, opts Opts) Outcome {
 	if cloneURL == "" {
 		return Outcome{Action: "error", Name: r.Name, Detail: "the provider listing gave no clone URL"}
 	}
-	if err := requireDir(opts.Path); err != nil {
+	// The checkout path may not exist until the first clone lands (new
+	// registration); create it rather than refusing to sync. Update-side
+	// entries always exist on disk already, so this never masks a typo for
+	// an existing checkout — discovery only lists repos that exist.
+	if err := os.MkdirAll(opts.Path, 0o755); err != nil {
 		return Outcome{Action: "error", Name: r.Name, Detail: err.Error()}
 	}
 	target := filepath.Join(opts.Path, r.Name)

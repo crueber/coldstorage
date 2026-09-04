@@ -330,17 +330,32 @@ func TestListingFailureDegrades(t *testing.T) {
 	}
 }
 
-// A missing checkout path fails loudly — the org's path is config, and a
-// silent empty listing would read as a real empty org.
-func TestPlanSyncMissingPathFailsLoudly(t *testing.T) {
-	opts := Opts{Path: filepath.Join(t.TempDir(), "absent"), Timeout: time.Minute}
-	src := Source{Owner: "acme", Path: opts.Path}
+// A missing checkout path is the NORMAL state for a new registration —
+// creating it by cloning is the whole point of the first sync. PlanSync
+// must plan against an empty disk, and the executor must create the path
+// when the first clone lands. (The earlier behavior — failing loudly on a
+// missing path — blocked every fresh registration and read as "sync did
+// nothing".)
+func TestPlanSyncTreatsMissingPathAsEmptyDisk(t *testing.T) {
+	base := t.TempDir()
+	bare, _ := seedBare(t, base, "upstream")
+	absent := filepath.Join(t.TempDir(), "brand", "new", "org")
+	opts := Opts{Path: absent, Timeout: time.Minute}
+	src := Source{Provider: "github", Owner: "acme", Path: absent, Protocol: "ssh"}
 
-	if _, err := PlanSync(src, opts, dirList(t), stubList(nil, nil)); err == nil {
-		t.Fatal("PlanSync must fail loudly when the checkout path is missing")
+	plan, err := PlanSync(src, opts, dirList(t), stubList([]Repo{
+		{Name: "r1", OwnerLogin: "acme", SSHURL: "file://" + bare},
+	}, nil))
+	if err != nil {
+		t.Fatalf("a missing checkout path is not an error: %v", err)
 	}
-	sp := ListSync(src, opts, dirList(t), stubList(nil, nil))
-	if sp.Err == nil || len(sp.Rows) != 1 || sp.Rows[0].Action != "error" {
-		t.Errorf("ListSync = %+v, want a loud error row", sp)
+	if len(plan.Plan.ToClone) != 1 || plan.Plan.ToClone[0].Name != "r1" {
+		t.Fatalf("plan = %+v, want the listing cloned into the new path", plan)
+	}
+
+	out := Execute(src, plan.Plan, opts, nil)
+	assertOutcome(t, out, 0, "cloned", "r1")
+	if _, err := os.Stat(filepath.Join(absent, "r1", ".git")); err != nil {
+		t.Fatalf("the clone created the checkout path: %v", err)
 	}
 }
