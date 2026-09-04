@@ -132,7 +132,7 @@ theme = "auto"                  # auto | dark | light — see §12 color theming
 editor_command = ["zed", "{path}"]              # O
 git_client_command = []         # t — empty = auto-detect (lazygit, gitui)
 file_manager_command = []       # o — empty = auto-detect (superfile, nnn, ranger)
-terminal_command = ["..."]      # T and ctrl-o
+terminal_command = []           # T — empty = $SHELL in the repo; {path} replaced
 
 [[orgs]]                        # repeatable; see §11
 provider = "github"             # github | gitlab | gitea
@@ -457,12 +457,15 @@ Modes: table, detail (`⏎`), help (`?`), column picker (`C`), org manager
 
 Keymap (table): `j/k/↑/↓` move · `ctrl-d/ctrl-u` half page · `pgup/pgdn` ·
 `home/end` · `⏎` detail · `d u r N b c i x e n` filters · `&` any/all ·
-`a` clear · `[ ]` group cycle · `o` org filter (cycles the registered
+`a` clear · `[ ]` group cycle · `O` org filter (cycles the registered
 orgs, matching repos under each registration's checkout path) · `0-4` age
 presets · `s` sort · `S` reverse · `/` search · `C` columns ·
-`R`/`ctrl-r` rescan · `A` org manager · `?` help · `q` quit. Deliberately
-unported from the Rust original: `f F ctrl-f` fetch, `o O t T` hand-off,
-`w` remote in browser, `y` copy path.
+`R`/`ctrl-r` rescan · `t` git TUI · `o` file manager · `T` shell (all three
+on the table and in the detail view; the terminal is released to the child
+via ExecProcess, and the repo re-probes on exit; `[ui]` command overrides
+with `{path}`) · `A` org manager · `?` help · `q` quit. Deliberately
+unported from the Rust original: `f F ctrl-f` fetch, `w` remote in
+browser, `y` copy path.
 
 Org manager: `j/k` · `a` add · `e` edit · `x x` remove · `s` sync selected ·
 `S` sync all enabled · `?` help · `esc` close. The form opens instantly in

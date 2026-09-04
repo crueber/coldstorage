@@ -92,6 +92,9 @@ max_subjects = 30
 default_filters = []                 # e.g. ["dirty", "unpushed"]
 default_sort = "activity"
 theme = "auto"                       # auto | dark | light — see Theming
+git_client_command = []              # t — empty = auto-detect (lazygit, gitui, tig)
+file_manager_command = []            # o — empty = auto-detect (spf, yazi, ranger, nnn)
+terminal_command = []                # T — empty = $SHELL; {path} is the repo root
 
 [[orgs]]
 provider = "github"                  # github | gitlab | gitea
@@ -120,8 +123,19 @@ scroll or move the cursor.
 `home/end` · `⏎` detail · `d u r N b c i x e n` filters (dirty, unpushed,
 released, needs-release, bare, conflicts, needs-attention, excluded,
 errors, never-fetched) · `&` any/all · `a` clear all · `[` `]` cycle group ·
-`0-4` age presets · `s` cycle sort · `S` reverse · `/` fuzzy search ·
-`C` column picker · `A` org manager · `R` rescan · `?` help · `q` quit.
+`O` cycle org filter · `0-4` age presets · `s` cycle sort · `S` reverse ·
+`/` fuzzy search · `C` column picker · `A` org manager · `R` rescan ·
+`?` help · `q` quit.
+
+**Hand-offs** (`t`, `o`, `T` — on the table and in the detail view):
+`t` opens a git TUI on the selected repo (detects `lazygit`, `gitui`, `lg`,
+`tig`), `o` opens a TUI file manager there (`spf`, `yazi`, `ranger`, `nnn`),
+and `T` hands the whole terminal to your shell in the repo's directory —
+when the shell exits, coldstorage comes back and re-probes whatever the
+shell left behind. The terminal is released to the child; coldstorage is
+suspended, not competing. `[ui] git_client_command`,
+`file_manager_command`, and `terminal_command` override detection, with
+`{path}` standing in for the repo root.
 
 **Detail view** (`⏎`): everything about one repo — state, release placement,
 visibility, activity and its source, head, remote, fetch age, tags,

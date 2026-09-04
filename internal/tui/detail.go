@@ -272,11 +272,16 @@ func helpGroups() []helpGroup {
 			{"a", "clear all filters"},
 			{"0-4", "age presets (any/1h/24h/1w/1mo)"},
 			{"[ ]", "cycle group filter"},
-			{"o", "cycle org filter (registered orgs)"},
+			{"O", "cycle org filter (registered orgs)"},
 			{"s", "cycle sort key"},
 			{"S", "reverse sort"},
 			{"/", "fuzzy search group/name/branch"},
 		}...)},
+		{"hand-offs", []helpKey{
+			{"t", "git TUI on the selected repo (lazygit, gitui, tig)"},
+			{"o", "TUI file manager (superfile, yazi, ranger, nnn)"},
+			{"T", "shell in the repo's directory"},
+		}},
 		{"org manager", []helpKey{
 			{"A", "org manager overlay"},
 			{"j/k", "move selection"},

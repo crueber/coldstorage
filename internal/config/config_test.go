@@ -55,8 +55,8 @@ func TestDefaultMatchesSpec(t *testing.T) {
 	if len(c.UI.GitClientCommand) != 0 || len(c.UI.FileManagerCommand) != 0 {
 		t.Errorf("GitClientCommand = %v, FileManagerCommand = %v, want empty", c.UI.GitClientCommand, c.UI.FileManagerCommand)
 	}
-	if len(c.UI.TerminalCommand) == 0 {
-		t.Errorf("TerminalCommand = %v, want non-empty placeholder", c.UI.TerminalCommand)
+	if len(c.UI.TerminalCommand) != 0 {
+		t.Errorf("TerminalCommand = %v, want empty (auto-detect $SHELL)", c.UI.TerminalCommand)
 	}
 	if len(c.Orgs) != 0 {
 		t.Errorf("Orgs = %v, want empty", c.Orgs)

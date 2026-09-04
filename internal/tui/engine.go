@@ -328,6 +328,15 @@ func (e *engine) probeAsync(root, group, name string) {
 	}()
 }
 
+// Requeue re-probes one root right now, bypassing fingerprint and cooldown
+// (§13): a hand-off — a git TUI, a file manager, a shell — may have changed
+// anything about the checkout, and the dashboard must catch up the moment
+// the terminal comes back.
+func (e *engine) Requeue(root, tool string) {
+	group, name := e.displayNames(root)
+	e.probeAsync(root, group, name)
+}
+
 // collect batches probe results for the UI (§14): at most 32 per message,
 // with a short coalescing window so a fleet sweep lands as a handful of
 // messages instead of one per repo.

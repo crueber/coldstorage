@@ -9,6 +9,7 @@
 package tui
 
 import (
+	"path/filepath"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -129,6 +130,19 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case warnMsg:
 		m.notify("warning: %v", msg.err)
 
+	case externalDoneMsg:
+		// The hand-off is over and coldstorage owns the terminal again.
+		// Whatever the user did in the other tool — commits, a dirty tree,
+		// new files — the repo's row must catch up, so it re-probes
+		// immediately (force: bypasses fingerprint and cooldown).
+		if msg.failed {
+			m.notify("%s exited with an error", msg.tool)
+		} else {
+			m.notify("%s finished — refreshing %s", msg.tool, filepath.Base(msg.root))
+		}
+		if m.engine != nil {
+			m.engine.Requeue(msg.root, msg.tool)
+		}
 	case histMsg:
 		// A stale page (the owner scrolled on to another repo) is dropped:
 		// the detail view must never show one repo's history under
@@ -342,6 +356,14 @@ func (m model) keyDetail(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 	rowsHeight := m.height - frameLines
 	moved := false
 	switch {
+	case keyIs(key, "t"):
+		return m.openGitUI()
+	case keyIs(key, "o"):
+		return m.openFileManager()
+	case keyIs(key, "T"):
+		return m.openShell()
+	}
+	switch {
 	case anyKey(key, "esc", "enter", "q"):
 		m.mode = modeTable
 		m.detailOff = 0
@@ -441,7 +463,12 @@ func (m model) keyTable(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.orgFilter = ""
 		m.search = ""
 		m.sel, m.offset = 0, 0
-	case keyIs(key, "o"):
+	case keyIs(key, "O"):
+		// §12: cycle the org filter — all, then each registered org in
+		// config order, then back to all. The filter matches by checkout
+		// path, so it follows the registration wherever it lives.
+		// (Shift-o pairs with A, the org manager; plain o is the file
+		// manager hand-off.)
 		// §12: cycle the org filter — all, then each registered org in
 		// config order, then back to all. The filter matches by checkout
 		// path, so it follows the registration wherever it lives.
@@ -466,6 +493,14 @@ func (m model) keyTable(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 		} else {
 			m.notify("org filter: %s", m.orgFilterOwner())
 		}
+	// Hand-offs (§12): each releases the terminal to the child and
+	// re-probes the repo when it exits.
+	case keyIs(key, "t"):
+		return m.openGitUI()
+	case keyIs(key, "o"):
+		return m.openFileManager()
+	case keyIs(key, "T"):
+		return m.openShell()
 	case keyIs(key, "&"):
 		m.matchAll = !m.matchAll
 	case keyIs(key, "["), keyIs(key, "]"):

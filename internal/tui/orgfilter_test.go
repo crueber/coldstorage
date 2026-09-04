@@ -81,7 +81,7 @@ func TestOrgFilterMatchByPath(t *testing.T) {
 func TestOrgFilterCycle(t *testing.T) {
 	m := orgFilterModel()
 
-	m = press(m, 'o')
+	m = press(m, 'O')
 	if m.orgFilter != orgKey(m.cfg.Orgs[0]) {
 		t.Fatalf("first press = %q, want the first registration", m.orgFilter)
 	}
@@ -90,7 +90,7 @@ func TestOrgFilterCycle(t *testing.T) {
 		t.Errorf("crueber filter shows %v", got)
 	}
 
-	m = press(m, 'o')
+	m = press(m, 'O')
 	if m.orgFilter != orgKey(m.cfg.Orgs[1]) {
 		t.Fatalf("second press = %q, want the second registration", m.orgFilter)
 	}
@@ -99,7 +99,7 @@ func TestOrgFilterCycle(t *testing.T) {
 		t.Errorf("decisiv filter shows %v", got)
 	}
 
-	m = press(m, 'o')
+	m = press(m, 'O')
 	if m.orgFilter != "" {
 		t.Fatalf("third press = %q, want all (wrapped)", m.orgFilter)
 	}
@@ -110,7 +110,7 @@ func TestOrgFilterCycle(t *testing.T) {
 
 func TestOrgFilterClearsAndSurvivesEdits(t *testing.T) {
 	m := orgFilterModel()
-	m = press(m, 'o')
+	m = press(m, 'O')
 	m = press(m, 'a')
 	if m.orgFilter != "" {
 		t.Fatal("a (clear all) must clear the org filter")
@@ -134,7 +134,7 @@ func TestOrgFilterResolvesEditedPath(t *testing.T) {
 	// The filter resolves the path at match time: an edited registration
 	// changes what the filter matches without touching the filter itself.
 	m := orgFilterModel()
-	m = press(m, 'o')
+	m = press(m, 'O')
 	m.cfg.Orgs[0].Path = "~/dev/github.com/decisiv"
 	if got := m.orgFilterPath(); !strings.HasSuffix(got, "decisiv") {
 		t.Fatalf("edited org resolves to %q", got)
@@ -149,7 +149,7 @@ func TestOrgFilterSummary(t *testing.T) {
 	lipgloss.SetColorProfile(termenv.Ascii)
 	defer lipgloss.SetColorProfile(termenv.Ascii)
 	m := orgFilterModel()
-	m = press(m, 'o')
+	m = press(m, 'O')
 	s := stripAnsi(m.filterSummary())
 	if !strings.Contains(s, "org: crueber on github.com") {
 		t.Errorf("summary = %q, want the org named", s)
@@ -159,7 +159,7 @@ func TestOrgFilterSummary(t *testing.T) {
 func TestOrgFilterWithNoOrgs(t *testing.T) {
 	m := orgFilterModel()
 	m.cfg.Orgs = nil
-	m = press(m, 'o')
+	m = press(m, 'O')
 	if m.orgFilter != "" {
 		t.Error("no registrations: the filter must stay clear")
 	}

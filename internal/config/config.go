@@ -100,7 +100,7 @@ type UIConfig struct {
 	EditorCommand      []string `toml:"editor_command"`       // {path} is replaced by the repo root
 	GitClientCommand   []string `toml:"git_client_command"`   // empty = auto-detect (lazygit, gitui)
 	FileManagerCommand []string `toml:"file_manager_command"` // empty = auto-detect (superfile, nnn, ranger)
-	TerminalCommand    []string `toml:"terminal_command"`     // T and ctrl-o
+	TerminalCommand    []string `toml:"terminal_command"`     // T: shell in the repo ({path} replaced)
 }
 
 // Default returns the configuration a fresh install runs with, matching
@@ -151,7 +151,7 @@ func Default() Config {
 			EditorCommand:      []string{"zed", "{path}"},
 			GitClientCommand:   []string{},
 			FileManagerCommand: []string{},
-			TerminalCommand:    []string{""},
+			TerminalCommand:    []string{},
 		},
 		Orgs: []OrgConfig{},
 	}
