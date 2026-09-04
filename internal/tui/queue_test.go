@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/muesli/termenv"
 
 	"github.com/crueber/coldstorage/internal/gitmode"
 )
@@ -213,3 +214,55 @@ var errTest = &testError{}
 type testError struct{}
 
 func (*testError) Error() string { return "boom" }
+
+// The real header on a 556-repo fleet: four colored count segments push the
+// rune count (escapes included) past the terminal width while the visual
+// width still fits. This is the user's report.
+func TestHeaderLineStatsSurviveAnsi(t *testing.T) {
+	lipgloss.SetColorProfile(termenv.ANSI256)
+	defer lipgloss.SetColorProfile(termenv.Ascii)
+	m := model{width: 60}
+	m.rows = map[string]RepoState{}
+	for i, name := range []string{"a", "b", "c", "d", "e"} {
+		r := row(name, nil)
+		r.Root = "/r/" + name
+		if i < 2 {
+			r.Work = &gitmode.WorkInfo{Unstaged: 2}
+		}
+		if i == 2 {
+			r.Refs.Branches = []gitmode.BranchInfo{{Name: "main", Ahead: 3}}
+		}
+		if i >= 3 {
+			r.Refs.FetchedAt = time.Time{} // never fetched
+		}
+		m.rows[r.Root] = r
+	}
+	left := m.headerView()
+	line := m.headerLine(left)
+	plain := stripAnsi(line)
+	t.Logf("visual=%d runes=%d width=%d", lipgloss.Width(left), len([]rune(left)), m.width)
+	if !strings.Contains(plain, "repos 5") || !strings.Contains(plain, "dirty 2") || !strings.Contains(plain, "unfetched 2") {
+		t.Errorf("STATS CUT: %q", plain)
+	}
+}
+
+// stripAnsi renders a styled string as its visible text, so tests can pin
+// what the user actually sees.
+func stripAnsi(s string) string {
+	var b strings.Builder
+	inEsc := false
+	for _, r := range s {
+		if inEsc {
+			if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') {
+				inEsc = false
+			}
+			continue
+		}
+		if r == '\x1b' {
+			inEsc = true
+			continue
+		}
+		b.WriteRune(r)
+	}
+	return b.String()
+}

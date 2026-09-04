@@ -458,10 +458,12 @@ Modes: table, detail (`⏎`), help (`?`), column picker (`C`), org manager
 
 Keymap (table): `j/k/↑/↓` move · `ctrl-d/ctrl-u` half page · `pgup/pgdn` ·
 `home/end` · `⏎` detail · `d u r N b c i x e n` filters · `&` any/all ·
-`a` clear · `[ ]` group cycle · `0-4` age presets · `s` sort · `S` reverse
-· `/` search · `C` columns · `R`/`ctrl-r` rescan · `f F ctrl-f` fetch ·
-`o O t T` hand-off · `w` remote in browser · `y` copy path · `A` org
-manager · `?` help · `q` quit.
+`a` clear · `[ ]` group cycle · `o` org filter (cycles the registered
+orgs, matching repos under each registration's checkout path) · `0-4` age
+presets · `s` sort · `S` reverse · `/` search · `C` columns ·
+`R`/`ctrl-r` rescan · `A` org manager · `?` help · `q` quit. Deliberately
+unported from the Rust original: `f F ctrl-f` fetch, `o O t T` hand-off,
+`w` remote in browser, `y` copy path.
 
 Org manager: `j/k` · `a` add · `e` edit · `x x` remove · `s` sync selected ·
 `S` sync all enabled · `?` help · `esc` close. The form opens instantly in

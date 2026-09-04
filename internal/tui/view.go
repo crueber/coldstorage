@@ -11,17 +11,27 @@ import (
 	"time"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
 )
 
-// frameLines is the chrome the table shares the screen with: two header
-// lines and two footer lines.
-const frameLines = 4
+// frameLines is the chrome the table shares the screen with: three header
+// lines (title, status, column caption) and two footer lines. The count
+// MUST equal every non-data line the table view writes — it once omitted
+// the column caption, making the frame one line taller than the terminal,
+// and the renderer (which keeps the LAST height lines) dropped the header
+// and with it every fleet statistic.
+const frameLines = 5
+
+// detailFrameLines is the same accounting for the detail view: two header
+// lines (title, slug) and one footer line.
+const detailFrameLines = 3
 
 var spinnerFrames = []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
 
 // currentFilters snapshots the model's filter state for the pure functions.
 func (m model) currentFilters() filters {
-	f := filters{kinds: map[string]bool{}, matchAll: m.matchAll, group: m.group, search: m.search}
+	f := filters{kinds: map[string]bool{}, matchAll: m.matchAll, group: m.group,
+		orgPath: m.orgFilterPath(), search: m.search}
 	for k := range m.filterKinds {
 		f.kinds[k] = true
 	}
@@ -31,6 +41,32 @@ func (m model) currentFilters() filters {
 		}
 	}
 	return f
+}
+
+// orgFilterPath resolves the org filter's registration to its checkout
+// path at match time — the same resolution the org manager's ON DISK count
+// uses, so the two views can never disagree about what belongs to an org.
+// A registration removed from the config simply stops matching ("").
+func (m model) orgFilterPath() string {
+	if m.orgFilter == "" {
+		return ""
+	}
+	for _, o := range m.cfg.Orgs {
+		if orgKey(o) == m.orgFilter {
+			return o.ResolvedPath(m.cfg)
+		}
+	}
+	return ""
+}
+
+// orgFilterOwner is the display name for the filter summary.
+func (m model) orgFilterOwner() string {
+	for _, o := range m.cfg.Orgs {
+		if orgKey(o) == m.orgFilter {
+			return o.Owner + " on " + o.Host
+		}
+	}
+	return ""
 }
 
 // visibleRows is the derived table: filter, search, sort. The base order is
@@ -197,20 +233,28 @@ func (m model) opWidget() string {
 
 // headerLine lays one chrome line out across the terminal: the left
 // content, the widget right-aligned on the edge, the empty space between.
-// A widget that no longer fits is dropped — the left half is the load-bearing
-// content.
+// Truncation — when the halves cannot share the line — MUST measure and cut
+// by visual width, not runes: the left half is styled, and its escape
+// sequences once pushed the rune count past the terminal edge while the
+// line had acres of room, cutting off the fleet counts (the incident behind
+// this comment).
 func (m model) headerLine(left string) string {
 	w := maxInt(1, m.width)
 	right := m.opWidget()
 	rw := lipgloss.Width(right)
 	if rw == 0 {
-		return truncate(left, w)
+		if lipgloss.Width(left) <= w {
+			return left
+		}
+		return ansi.Truncate(left, w, "")
 	}
 	pad := w - lipgloss.Width(left) - rw
 	if pad < 1 {
-		return truncate(left, w)
+		// The two halves cannot share the line; the left half is the
+		// load-bearing content and the widget is dropped.
+		return ansi.Truncate(left, w, "")
 	}
-	return truncate(left, w-rw-1) + strings.Repeat(" ", pad) + right
+	return left + strings.Repeat(" ", pad) + right
 }
 
 // fleetCounts is the §12 header tally.
@@ -263,10 +307,15 @@ func (m model) filterSummary() string {
 	}
 	var f string
 	switch {
-	case len(parts) == 0 && m.group == "" && m.search == "" && m.ageIdx == 0:
+	case len(parts) == 0 && m.group == "" && m.search == "" && m.ageIdx == 0 && m.orgFilter == "":
 		return m.defaultStatusLine()
 	case len(parts) > 0:
 		f = "filters: " + strings.Join(parts, ",") + " (" + matchMode + ")"
+	}
+	if m.orgFilter != "" {
+		if owner := m.orgFilterOwner(); owner != "" {
+			f = joinFilterPart(f, "org: "+owner)
+		}
 	}
 	if m.group != "" {
 		f = joinFilterPart(f, "group: "+m.group)

@@ -211,6 +211,14 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		m.cfg = msg.cfg
+		// A removed registration takes its filter with it: a filter that
+		// points at an org the config no longer knows would either match
+		// everything (path resolves nowhere) or nothing at all — both
+		// read as a broken dashboard. Drop it and say so.
+		if m.orgFilter != "" && m.orgFilterPath() == "" {
+			m.orgFilter = ""
+			m.notify("org filter cleared — the org was removed")
+		}
 		if m.engine != nil {
 			m.engine.setConfig(msg.cfg)
 		}
@@ -427,8 +435,34 @@ func (m model) keyTable(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.matchAll = false
 		m.ageIdx = 0
 		m.group = ""
+		m.orgFilter = ""
 		m.search = ""
 		m.sel, m.offset = 0, 0
+	case keyIs(key, "o"):
+		// §12: cycle the org filter — all, then each registered org in
+		// config order, then back to all. The filter matches by checkout
+		// path, so it follows the registration wherever it lives.
+		if len(m.cfg.Orgs) == 0 {
+			m.notify("no orgs registered — A to add one")
+			return m, nil
+		}
+		next := ""
+		for i, o := range m.cfg.Orgs {
+			if orgKey(o) == m.orgFilter && i+1 < len(m.cfg.Orgs) {
+				next = orgKey(m.cfg.Orgs[i+1])
+				break
+			}
+		}
+		if m.orgFilter == "" {
+			next = orgKey(m.cfg.Orgs[0])
+		}
+		m.orgFilter = next
+		m.sel, m.offset = 0, 0
+		if m.orgFilter == "" {
+			m.notify("org filter: all")
+		} else {
+			m.notify("org filter: %s", m.orgFilterOwner())
+		}
 	case keyIs(key, "&"):
 		m.matchAll = !m.matchAll
 	case keyIs(key, "["), keyIs(key, "]"):

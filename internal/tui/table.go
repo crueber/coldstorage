@@ -5,6 +5,7 @@
 package tui
 
 import (
+	"path/filepath"
 	"sort"
 	"strings"
 	"time"
@@ -86,13 +87,18 @@ type filters struct {
 	matchAll bool      // & toggles between any and all
 	since    time.Time // zero = any age
 	group    string    // "" = all groups
+	orgPath  string    // "" = all orgs; otherwise repos under the registration's checkout path
 	search   string    // fuzzy, on group/name/branch
 }
 
 // match reports whether one row passes. Zero active filters, no group, no
-// age preset, and no search match everything, so an unfiltered dashboard is
-// the identity.
+// age preset, no org, and no search match everything, so an unfiltered
+// dashboard is the identity.
 func (f filters) match(r RepoState) bool {
+	if f.orgPath != "" && r.Root != f.orgPath &&
+		!strings.HasPrefix(r.Root, f.orgPath+string(filepath.Separator)) {
+		return false
+	}
 	if f.group != "" && r.Group != f.group {
 		return false
 	}

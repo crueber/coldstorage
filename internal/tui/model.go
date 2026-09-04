@@ -144,6 +144,7 @@ type model struct {
 	matchAll    bool
 	ageIdx      int // index into agePresets, 0 = any
 	group       string
+	orgFilter   string // orgKey of the filtered registration; "" = all orgs
 	groups      []string
 	sortKey     string
 	sortReverse bool

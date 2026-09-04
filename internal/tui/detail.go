@@ -32,7 +32,7 @@ func (m model) detailView() string {
 	b.WriteString(styles.status.Render(r.Slug() + " · esc/⏎ back to table"))
 	b.WriteString("\n")
 
-	rowsHeight := m.height - frameLines
+	rowsHeight := m.height - detailFrameLines
 	if rowsHeight < 1 {
 		rowsHeight = 1
 	}
@@ -104,7 +104,7 @@ func (m model) maybeLoadHistory() tea.Cmd {
 	if m.sel < 0 || m.sel >= len(rows) || rows[m.sel].Root != m.histRoot {
 		return nil
 	}
-	rowsHeight := maxInt(1, m.height-frameLines)
+	rowsHeight := maxInt(1, m.height-detailFrameLines)
 	total := len(detailLines(rows[m.sel], time.Now())) + len(m.historyLines(rows[m.sel], time.Now()))
 	if m.detailOff+rowsHeight < total-histAhead {
 		return nil
@@ -269,6 +269,7 @@ func helpGroups() []helpGroup {
 			{"a", "clear all filters"},
 			{"0-4", "age presets (any/1h/24h/1w/1mo)"},
 			{"[ ]", "cycle group filter"},
+			{"o", "cycle org filter (registered orgs)"},
 			{"s", "cycle sort key"},
 			{"S", "reverse sort"},
 			{"/", "fuzzy search group/name/branch"},
