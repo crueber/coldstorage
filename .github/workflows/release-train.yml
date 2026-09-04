@@ -1,0 +1,64 @@
+# The release train (§ release engineering): every green CI run on main is
+# a release. The tag bumps the latest version's patch number and lands on
+# the commit CI just blessed; the tag triggers the release workflow, which
+# runs the gates again and publishes the package and the Homebrew formula.
+# Manual major/minor tags still win — the train only ever bumps the patch
+# from whatever the newest tag is.
+name: release-train
+
+on:
+  workflow_run:
+    workflows: [ci]
+    types: [completed]
+    branches: [main]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-train
+  cancel-in-progress: false
+
+jobs:
+  tag:
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.workflow_run.head_sha }}
+
+      - name: Tag the next patch version
+        env:
+          SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          if git describe --tags --exact-match "$SHA" >/dev/null 2>&1; then
+            echo "the build commit is already tagged — nothing to release"
+            exit 0
+          fi
+
+          latest=$(git tag --list 'v*' --sort=-v:refname | head -n 1)
+          if [ -z "$latest" ]; then
+            latest="v0.0.0"
+          fi
+
+          # Doc-only changes since the last tag do not need a new binary.
+          changed=$(git diff --name-only "$latest" "$SHA" -- . ':!*.md' ':!docs' ':!.gitignore')
+          if [ -z "$changed" ]; then
+            echo "only docs changed since $latest — skipping the release"
+            exit 0
+          fi
+
+          ver="${latest#v}"
+          maj=${ver%%.*}
+          rest=${ver#*.}
+          min=${rest%%.*}
+          patch=${rest#*.}
+          next="v$maj.$min.$((patch + 1))"
+
+          git config user.name "coldstorage-release-train"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "$next" -m "$next — automatic release from ${SHA::7}" "$SHA"
+          git push origin "$next"
+          echo "tagged $next on $SHA"
