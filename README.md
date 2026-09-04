@@ -18,6 +18,43 @@ Why a rewrite exists, and why Go, is its own story:
 
 ---
 
+## Features
+
+- **Live fleet dashboard** — every checkout on one full-width table: group,
+  repo, branch, state, release verdict, changes, ahead/behind, tag, and age,
+  with fleet totals in the header and an operation widget that narrates
+  background work.
+- **Fast at 500–1,000+ repos** — a fingerprint gate skips unchanged
+  checkouts without spawning a single process, and per-repo filesystem
+  watching re-probes the moment something moves; storm gates keep a burst
+  of changes from stampeding the background.
+- **Org sync that never lies** — register GitHub, GitLab, or Gitea/Forgejo
+  orgs and sync them through the provider's own CLI: clones what's missing,
+  updates with `pull --ff-only`, reports orphans, skips diverged/dirty/
+  detached with the reason shown, and never merges, rewrites, or deletes.
+- **Repo sync from anywhere** — `p` pulls the selected repo, `P` pulls
+  every discovered repo, with the same safety semantics and a progress
+  widget.
+- **Detail view** — one repo's complete story: state, release placement,
+  tags, changelog verdict, the full branch table with per-upstream
+  ahead/behind, and its commit history as you scroll.
+- **Hand-offs** — `t` opens a git TUI (lazygit, gitui, tig), `o` a TUI file
+  manager (superfile, yazi, ranger, nnn), and `T` a shell in the repo's
+  directory; the terminal is released to the child and coldstorage resumes
+  and re-probes when it exits.
+- **Group colors** — paint a group's rows from the config or the `G`
+  overlay, persisted to the toml on the spot.
+- **Org filtering** — `O` cycles the table down to a single registered
+  organization's checkouts.
+- **Themes that follow your shell** — Omarchy's active theme, the
+  terminal's own background (OSC 11), or the macOS system appearance; the
+  verdict grammar reads on all of them.
+- **Filters that compose** — dirty, unpushed, needs-release, conflicts,
+  never-fetched and more, with any/all matching, group and org filters,
+  age presets, sort cycling, and fuzzy search.
+- **Honest reporting** — `?` means nobody checked; an unfetched repo says
+  so instead of inventing an ahead/behind count.
+
 ## Install
 
 **Homebrew** (macOS and Linux):
