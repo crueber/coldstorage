@@ -175,16 +175,6 @@ into the header's operation widget; the tally lands on the status line and
 a sweep afterward re-probes exactly the repos that moved. `[remote]`
 timeout and concurrency bound the pass.
 
-## What stays fast
-
-- **Fingerprint gate**: one FNV-1a fingerprint over `.git` mtimes/sizes per
-  repo; unchanged checkouts return cached rows with zero process spawns.
-- **Selective watches**: ~10–20 inotify watches per repo (root, working
-  dirs, `.git` non-recursive; `refs`/`logs` recursive), reconciled on a
-  background thread; `.git/objects` is never watched.
-- **Bounded batches**: probe results arrive in batches of 32 with a UI drain
-  between them; repaints tick at 250ms while work runs, ~1s idle.
-
 ## Development
 
 ```sh
