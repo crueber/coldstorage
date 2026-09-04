@@ -35,6 +35,10 @@ jobs:
           fetch-depth: 0
           ref: ${{ github.event.workflow_run.head_sha }}
 
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
       - name: Tag the next patch version
         env:
           SHA: ${{ github.event.workflow_run.head_sha }}
@@ -67,12 +71,18 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git tag -a "$next" -m "$next — automatic release from ${SHA::7}" "$SHA"
           if [ -n "$PUSH_TOKEN" ]; then
-            # The username must be the account, not x-access-token: pushes
-            # under an app identity do not trigger workflows, and the whole
-            # point of this push is to fire the release workflow.
+            # Push the marker tag, then fire the release workflow
+            # explicitly: a tag pushed with any token does not trigger
+            # workflows on its own, and an explicit dispatch is the
+            # guaranteed path.
             git push "https://crueber:$PUSH_TOKEN@github.com/crueber/coldstorage.git" "$next"
+            curl -fsSL -X POST \
+              -H "Authorization: token $PUSH_TOKEN" \
+              -H "Accept: application/vnd.github+json" \
+              "https://api.github.com/repos/$GITHUB_REPOSITORY/actions/workflows/release.yml/dispatches" \
+              -d "{\"ref\":\"main\",\"inputs\":{\"tag\":\"$next\"}}"
           else
-            echo "warning: no PAT — pushing with GITHUB_TOKEN, which will NOT trigger the release workflow"
+            echo "warning: no PAT — pushing with GITHUB_TOKEN; the release workflow must be dispatched by hand"
             git push origin "$next"
           fi
           echo "tagged $next on $SHA"
