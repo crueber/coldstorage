@@ -15,6 +15,12 @@ on:
 permissions:
   contents: write
 
+# A tag pushed with the default GITHUB_TOKEN does not trigger the release
+# workflow (GitHub refuses token-recursive runs), so the train pushes with
+# a PAT — the same one the Homebrew step uses.
+env:
+  PUSH_TOKEN: ${{ secrets.TAP_GITHUB_TOKEN }}
+
 concurrency:
   group: release-train
   cancel-in-progress: false
@@ -60,5 +66,10 @@ jobs:
           git config user.name "coldstorage-release-train"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git tag -a "$next" -m "$next — automatic release from ${SHA::7}" "$SHA"
-          git push origin "$next"
+          if [ -n "$PUSH_TOKEN" ]; then
+            git push "https://x-access-token:$PUSH_TOKEN@github.com/crueber/coldstorage.git" "$next"
+          else
+            echo "warning: no PAT — pushing with GITHUB_TOKEN, which will NOT trigger the release workflow"
+            git push origin "$next"
+          fi
           echo "tagged $next on $SHA"
