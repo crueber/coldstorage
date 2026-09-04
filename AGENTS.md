@@ -15,12 +15,19 @@ Scope note from the owner: **TUI only.** The Rust original's CLI commands
 (`list`, `status`, `scan`, …) are explicitly out of scope; everything they
 do is delivered through the dashboard.
 
+**Status:** the port is complete — config, discovery, git probes, watcher,
+org sync, the dashboard, and the org manager — through the first UI polish
+pass (full-width stable table, the header operation widget, detail commit
+history, shell theming). The repo of record is `crueber/coldstorage`; the
+upstream PR to `yetidevworks/drydock` was closed by its author, and the
+relationship is credited, not merged: never push to the upstream.
+
 ## Gates (every change, before commit)
 
 ```sh
 gofmt -l .            # must print nothing
 go vet ./...
-go test ./...
+go test -count=1 ./...   # -count=1: a cached "ok" prints no result line
 ```
 
 Go 1.22+ (repo uses 1.27). Tests are **network-free**: tempdirs, `file://`
@@ -29,11 +36,11 @@ or the network is a broken test.
 
 ## Dependency policy
 
-Keep it tiny. Approved so far: `github.com/BurntSushi/toml` (config),
-`github.com/bmatcuk/doublestar/v4` (config exclude globs). Expected later:
-`github.com/fsnotify/fsnotify` (watching), Charm libraries (`bubbletea`,
-`lipgloss`, `bubbles`) for the TUI. Anything else needs a stated reason in
-the commit. No cgo, ever.
+Approved, in use: `github.com/BurntSushi/toml` (config),
+`github.com/bmatcuk/doublestar/v4` (exclude globs),
+`github.com/fsnotify/fsnotify` (watching), and the Charm stack —
+`bubbletea`, `lipgloss`, `bubbles` (the TUI). Anything else needs a stated
+reason in its commit. No cgo, ever.
 
 ## Layout
 
@@ -45,6 +52,7 @@ internal/gitmode/    local git probes: refs, status, fingerprint    (spec §6–
 internal/watcher/    per-repo selective watch sets, reconcile       (spec §13)
 internal/orgsync/    provider listings + serial sync engine         (spec §11)
 internal/tui/        the dashboard                                  (spec §12)
+internal/theme/      theme detection: omarchy, OSC 11, COLORFGBG    (spec §12)
 ```
 
 ## Invariants — these have incidents attached; do not re-break them
@@ -82,6 +90,15 @@ prevents; read it before touching the area.
    files load; unknown keys are a hard error with the key named.
 8. **Discovery stops at the first repo** (§5): no descending into
    checkouts; bare repos and worktrees count as repos.
+9.  **Missing scan roots are surfaced** (§17): a root that does not exist is
+    warned about on every sweep — a typo'd root once left a 550-repo fleet
+    displaying as an empty dashboard, which reads as "the app is broken,"
+    not "the config is."
+10. **First sync creates the checkout path** (§11.3): a missing org path is
+    created by the first clone, never an error — a brand-new registration
+    always points at a directory that does not exist yet. Only an
+    unresolvable path (no path configured and no root to derive one from)
+    fails loudly.
 
 ## Conventions
 
