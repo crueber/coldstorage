@@ -1,3 +1,4 @@
 /coldstorage
 *.test
 dist/
+.opencode/
