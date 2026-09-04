@@ -105,8 +105,10 @@ owner = "acme"
 path = "~/dev/github.com/acme"       # where checkouts live; created on first sync
 # login = "work"                     # gitea/tea only: which login to use
 # protocol = "https"                 # ssh (default) | https
+# enabled = true                      # false = registered but never synced
 # include_forks = false
-# include_subgroups = false
+# include_archived = false
+# include_subgroups = false           # gitlab only
 # exclude = ["archived-*"]
 ```
 
@@ -129,6 +131,15 @@ errors, never-fetched) · `&` any/all · `a` clear all · `[` `]` cycle group ·
 `/` fuzzy search · `p` sync repo · `P` sync all · `C` column picker ·
 `A` org manager · `G` group colors · `R` rescan · `?` help · `q` quit.
 
+**The chrome**: line one is the fleet — total repos, dirty, unpushed,
+needs-release, and never-fetched counts — with the operation widget on the
+right edge whenever background work is running, saying what the queue is
+doing right now. Line two is the status line: the active filter summary,
+the search prompt, or the last operation's result. The fleet also stays
+live on its own: a sweep runs on the `[refresh]` interval, and per-repo
+filesystem watching re-probes a checkout the moment something touches it —
+storm gates keep a burst of changes from stampeding the background.
+
 **Hand-offs** (`t`, `o`, `T` — on the table and in the detail view):
 `t` opens a git TUI on the selected repo (detects `lazygit`, `gitui`, `lg`,
 `tig`), `o` opens a TUI file manager there (`spf`, `yazi`, `ranger`, `nnn`),
@@ -145,13 +156,18 @@ changelog verdict, the full branch table with ahead/behind per upstream, and
 the repo's recent **commit history** (titles, paged in as you scroll).
 `j/k` scrolls, `esc`/`⏎` returns.
 
-**Org manager** (`A`): register, edit, remove, and sync organization
-checkouts. The add form probes `gh`/`glab`/`tea` auth first (off the UI
-thread), cycles only through providers you're logged into, and auto-fills
-the checkout path. `s` syncs the selected org, `S` syncs every enabled one;
-progress streams into the header's operation widget, the summary lands on
-the status line, and a full sweep afterward makes fresh clones appear
-immediately.
+**Org manager** (`A`): `a` add · `e` edit · `x x` remove · `s` sync the
+selected org · `S` sync every enabled one · `esc` close. The add form
+probes `gh`/`glab`/`tea` auth first (off the UI thread), cycles only
+through providers you're logged into, and auto-fills the checkout path.
+Sync **clones missing checkouts, updates with `pull --ff-only`**, reports
+orphans (checkouts the org no longer lists), and skips divergent, dirty,
+or detached repos with the reason shown — nothing is ever merged or
+deleted. Adding an org over a directory another registration covers
+replaces the older registration, and interrupted-clone debris (a `.git`
+with no HEAD) is cleared and re-cloned rather than wedging the repo.
+Progress streams into the operation widget; a full sweep afterward makes
+fresh clones appear immediately.
 
 ## Theming
 
@@ -177,6 +193,11 @@ name (`red`, `blue`, `bright-cyan`, …). Rows in that group render with
 that background across the full table width; the selection highlight
 outranks it, and the verdict colors stay foreground-only so they read on
 any background. The selection highlight always wins.
+
+Set them from the TUI: **`G`** opens the group colors overlay — pick a
+group, `enter`/`l` cycles forward through a muted palette, `h` cycles
+back, `x` clears. Every change is written to the config on the spot, so
+the toml and the screen never disagree.
 
 ## Repo sync
 
@@ -207,7 +228,11 @@ the release package (six cross-compiled binaries — Linux, macOS, Windows on
 x86_64 and arm64 — as archives with checksums and a changelog) via
 GoReleaser. The config is `.goreleaser.yaml`; the pipeline is
 `.github/workflows/release.yml`. Ordinary pushes get the same gates on CI
-(`.github/workflows/ci.yml`).
+(`.github/workflows/ci.yml`), and every green `main` build is tagged and
+released automatically by the release train
+(`.github/workflows/release-train.yml`) — the Homebrew formula in
+[crueber/homebrew-tap](https://github.com/crueber/homebrew-tap) is
+regenerated per release.
 
 ## Credits
 
