@@ -44,10 +44,15 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Update Homebrew tap
-        if: ${{ secrets.TAP_GITHUB_TOKEN != '' }}
         env:
           TAP_TOKEN: ${{ secrets.TAP_GITHUB_TOKEN }}
         run: |
+          # The secrets context is not readable in a step's if; the guard
+          # lives here.
+          if [ -z "$TAP_TOKEN" ]; then
+            echo "TAP_GITHUB_TOKEN not set — skipping the tap update"
+            exit 0
+          fi
           git clone -q https://x-access-token:$TAP_TOKEN@github.com/crueber/homebrew-tap.git tap
           ./scripts/update-homebrew.sh "$GITHUB_REF_NAME" dist/checksums.txt tap
           cd tap
