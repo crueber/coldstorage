@@ -86,7 +86,6 @@ func listGitea(src Source, timeout time.Duration) ([]Repo, error) {
 			return nil, err
 		}
 
-		added := 0
 		for _, r := range rows {
 			// Owner pinning: the endpoint's owner parameter is advisory on
 			// some instances — it also answers with repos from reachable
@@ -101,9 +100,11 @@ func listGitea(src Source, timeout time.Duration) ([]Repo, error) {
 			}
 			seen[key] = true
 			all = append(all, r)
-			added++
 		}
-		if added == 0 {
+		// Nothing-new means the page came back empty: a page of
+		// pinned-out foreign rows must not stop the walk, since later
+		// pages can still carry owned repos.
+		if len(rows) == 0 {
 			break
 		}
 	}

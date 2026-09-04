@@ -218,6 +218,7 @@ var sectionKeys = map[string]map[string]bool{
 	"refresh":    {"interval": true, "watch": true, "debounce": true},
 	"status":     {"untracked": true, "max_files": true, "max_age": true},
 	"remote":     {"fetch": true, "interval": true, "concurrency": true, "timeout": true},
+	"release":    {"tag_pattern": true, "max_subjects": true, "read_changelog": true, "changelog_files": true},
 	"visibility": {"enabled": true, "interval": true, "concurrency": true, "timeout": true},
 	"ui":         {"default_filters": true, "default_sort": true, "default_since": true, "theme": true, "editor_command": true, "git_client_command": true, "file_manager_command": true, "terminal_command": true},
 }

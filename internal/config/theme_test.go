@@ -31,3 +31,13 @@ func TestUnknownUIKeyStillHardError(t *testing.T) {
 		t.Errorf("theme must not widen the accepted key set: %v", err)
 	}
 }
+
+func TestReleaseSectionSubkeysAreValidated(t *testing.T) {
+	_, err := Load(writeConfig(t, "[release]\ntag_patern = \"*\"\n"))
+	if err == nil || !strings.Contains(err.Error(), "release.tag_patern") {
+		t.Errorf("a typo'd release subkey must be a hard error, got %v", err)
+	}
+	if _, err := Load(writeConfig(t, "[release]\ntag_pattern = \"*[0-9]*\"\n")); err != nil {
+		t.Errorf("a valid release section must load: %v", err)
+	}
+}

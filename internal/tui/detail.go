@@ -84,8 +84,11 @@ func (m model) historyLines(r RepoState, now time.Time) []string {
 }
 
 // loadHistory fetches the next page of the selected repo's commit history
-// on a command goroutine — the caller never blocks on git (§12).
-func (m model) loadHistory() tea.Cmd {
+// on a command goroutine — the caller never blocks on git (§12). The
+// receiver is a pointer because the in-flight guard must stick in the
+// returned model: on a value receiver the flag mutates a copy, and every
+// scroll event would spawn a duplicate git log.
+func (m *model) loadHistory() tea.Cmd {
 	if m.histLoading || m.histDone || m.histRoot == "" {
 		return nil
 	}
@@ -99,7 +102,7 @@ func (m model) loadHistory() tea.Cmd {
 
 // maybeLoadHistory issues the next page fetch when the owner has scrolled
 // within histAhead lines of the loaded end.
-func (m model) maybeLoadHistory() tea.Cmd {
+func (m *model) maybeLoadHistory() tea.Cmd {
 	rows := m.visibleRows()
 	if m.sel < 0 || m.sel >= len(rows) || rows[m.sel].Root != m.histRoot {
 		return nil

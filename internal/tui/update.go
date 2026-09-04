@@ -364,9 +364,11 @@ func (m model) keyDetail(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 	// Scrolling toward the end of what is loaded pulls the next page of
 	// history from git — off-thread, the way every blocking thing happens
-	// here (§12 preemption).
 	if moved {
-		return m, m.maybeLoadHistory()
+		// The pointer-receiver loader flags the fetch in-flight on m; the
+		// model returned here is the one the guard sticks to.
+		cmd := m.maybeLoadHistory()
+		return m, cmd
 	}
 	return m, nil
 }
@@ -401,7 +403,8 @@ func (m model) keyTable(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.histDone = false
 			m.histErr = nil
 			m.histLoading = false
-			return m, m.loadHistory()
+			cmd := m.loadHistory()
+			return m, cmd
 		}
 	case keyIs(key, "A"):
 		// §12: the org manager overlay. The cursor keeps its position

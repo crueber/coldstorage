@@ -86,6 +86,7 @@ func TestListGitea(t *testing.T) {
 	writeScript(t, filepath.Join(bin, "tea"), `echo "$@" >> "$TEA_LOG"
 echo "NOTE: using login mhs"
 case "$*" in
+  *page=3*) echo '{"ok":true,"data":[]}' ;;
   *page=2*) echo '`+teaPage2+`' ;;
   *) echo '`+teaPage1+`' ;;
 esac
@@ -123,8 +124,11 @@ esac
 			t.Errorf("tea args missing %q: %s", want, args)
 		}
 	}
-	if strings.Contains(args, "page=3") {
-		t.Error("pagination must stop when a page adds nothing new")
+	if !strings.Contains(args, "page=3") {
+		t.Error("a page of pinned-out foreign rows must not stop pagination")
+	}
+	if strings.Contains(args, "page=4") {
+		t.Error("pagination must stop on the empty page")
 	}
 }
 

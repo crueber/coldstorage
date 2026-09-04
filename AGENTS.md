@@ -39,8 +39,9 @@ or the network is a broken test.
 Approved, in use: `github.com/BurntSushi/toml` (config),
 `github.com/bmatcuk/doublestar/v4` (exclude globs),
 `github.com/fsnotify/fsnotify` (watching), and the Charm stack —
-`bubbletea`, `lipgloss`, `bubbles` (the TUI). Anything else needs a stated
-reason in its commit. No cgo, ever.
+`bubbletea` and `lipgloss` (the TUI; `x/ansi` for ANSI-aware truncation of
+styled chrome). Anything else needs a stated reason in its commit. No cgo,
+ever.
 
 ## Layout
 

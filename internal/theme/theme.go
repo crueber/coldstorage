@@ -10,12 +10,14 @@
 package theme
 
 import (
+	"context"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/BurntSushi/toml"
 )
@@ -103,8 +105,10 @@ func detectHome(configured string, termDark bool, home string) Theme {
 	if runtime.GOOS == "darwin" {
 		// The terminal's answer may be a fallback guess (some emulators
 		// never answer the query); on the mac the system appearance is the
-		// authority Terminal.app itself follows.
-		if d := macosDark(); d != termDark {
+		// authority Terminal.app itself follows — but only when the probe
+		// actually answered. A failed `defaults` call is not a light-mode
+		// verdict; it keeps the terminal's.
+		if d, ok := macosDark(); ok && d != termDark {
 			t = Generic(d)
 			t.Source = "macos"
 		}
@@ -150,11 +154,18 @@ func omarchyTheme(home string) (Theme, bool) {
 }
 
 // macosDark reports the macOS system appearance by asking `defaults` — the
-// same answer Terminal.app uses to pick its profile. Anything unexpected
-// (non-darwin, no defaults binary) is not dark.
-func macosDark() bool {
-	out, err := exec.Command("defaults", "read", "-g", "AppleInterfaceStyle").Output()
-	return err == nil && strings.TrimSpace(string(out)) == "Dark"
+// same answer Terminal.app uses to pick its profile. ok is false whenever
+// the probe did not actually answer (non-darwin, no defaults binary,
+// timeout): a failed probe is not a light-mode verdict. The child gets the
+// same deadline discipline as every other process this tool spawns.
+func macosDark() (dark bool, ok bool) {
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	out, err := exec.CommandContext(ctx, "defaults", "read", "-g", "AppleInterfaceStyle").Output()
+	if err != nil {
+		return false, false
+	}
+	return strings.TrimSpace(string(out)) == "Dark", true
 }
 
 // colorFGBGDark parses the rxvt convention ("foreground;background" ANSI

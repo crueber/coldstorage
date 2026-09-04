@@ -244,10 +244,14 @@ func (m *model) rebuildGroups() {
 	}
 }
 
-// notify sets a transient status message with the §12 TTL.
+// notify sets a transient status message with the §12 TTL. The stamp is
+// the TTL's anchor: without it the zero time makes every message expire
+// the instant it is set, and the status line never shows anything.
 func (m *model) notify(format string, args ...any) {
 	m.status = fmt.Sprintf(format, args...)
+	m.statusAt = time.Now()
 }
+
 func (m model) busy() bool {
 	return m.sweeping || m.syncRunning || (m.engine != nil && m.engine.Busy())
 }

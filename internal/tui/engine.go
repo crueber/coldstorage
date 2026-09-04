@@ -228,7 +228,7 @@ func (e *engine) probe(root, group, name string, force bool) {
 	e.mu.Unlock()
 
 	if !force && haveCached && cached.Fingerprint == gitmode.Fingerprint(root) {
-		e.results <- cached
+		e.sendResult(cached)
 		return
 	}
 
@@ -252,7 +252,17 @@ func (e *engine) probe(root, group, name string, force bool) {
 		e.cache[root] = row
 		e.mu.Unlock()
 	}
-	e.results <- row
+	e.sendResult(row)
+}
+
+// sendResult delivers one probe result to the collector without ever
+// blocking on a full channel after shutdown: probes that park on send hold
+// their goroutine, and pwg.Wait/Close would wait for them forever.
+func (e *engine) sendResult(row RepoState) {
+	select {
+	case e.results <- row:
+	case <-e.quit:
+	}
 }
 
 // probeAsync probes one watcher-admitted repo on its own goroutine and runs
@@ -273,9 +283,18 @@ func (e *engine) probeAsync(root, group, name string) {
 		defer e.wg.Done()
 		defer e.probing.Add(-1)
 		e.probe(root, group, name, true)
-		for _, r := range e.gate.Release(root, time.Now()) {
-			e.probe(r, e.groupOf(r), e.nameOf(r), true)
-			e.gate.Release(r, time.Now())
+		// The re-issue chain runs to a fixpoint: Release admits pending
+		// roots (in-flight + permit) and returns the next wave, and a wave
+		// admitted but never released would hold its permit forever,
+		// starving every later re-probe.
+		pending := e.gate.Release(root, time.Now())
+		for len(pending) > 0 {
+			var next []string
+			for _, r := range pending {
+				e.probe(r, e.groupOf(r), e.nameOf(r), true)
+				next = append(next, e.gate.Release(r, time.Now())...)
+			}
+			pending = next
 		}
 	}()
 }
