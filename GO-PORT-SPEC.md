@@ -7,9 +7,8 @@ original, feature for feature and edge case for edge case. It describes
 a behavior exists because of a hard-won lesson, the lesson is stated — those
 are the parts most likely to be silently re-broken in a rewrite.
 
-Companion documents: `README.md` (user docs), `FEATURES.md` (high-level
-feature map), `AGENTS.md` (repo invariants for agents), `CHANGELOG.md`
-(history).
+Companion documents: `README.md` (user docs), `REWRITE-FROM-DRYDOCK.md`
+(the rewrite's rationale), `AGENTS.md` (repo invariants for agents).
 
 Conventions: **MUST** is a contract the port must keep; **SHOULD** is strong
 guidance. Every numbered rule in §13–14 has a named regression test in the

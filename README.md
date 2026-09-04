@@ -3,14 +3,7 @@
 A terminal dashboard for a fleet of git repositories — what's dirty, what's
 unpushed, and what's worth releasing, across every checkout you own, live.
 
-```
-coldstorage repos 556 dirty 3 unpushed 1 needs-release 125 unfetched 5     ⠙ sync crueber on github.com 41/96
-sorted by activity · 556 repos
-GROUP   REPO                       BRANCH        STATE     RELEASE        CHANGES  AHEAD BEHIND TAG            +TAG  AGE
-crueber walhub                      feat/issues   dirty     unreleased     ~16 ?11  ·     5     ·               ·     now
-crueber n8n-workflows               main          clean     needs-release  ·        ·     ·     v1.2.3          2d    2d
-decisiv integration-framework-api   main          clean     needs-release  ·        ·     2     v5.34.0         3w    3w
-```
+![coldstorage — the crueber group, sorted by activity](docs/preview.png)
 
 **coldstorage is the Go reimplementation of
 [drydock](https://github.com/yetidevworks/drydock)**, Andy Miller's Rust
@@ -20,36 +13,20 @@ built on; `GO-PORT-SPEC.md` is drydock's behavioral specification, adapted
 for the port, and this repository follows it feature for feature. If you use
 coldstorage and like it, go star
 [drydock](https://github.com/yetidevworks/drydock) — it is the original.
+Why a rewrite exists, and why Go, is its own story:
+[REWRITE-FROM-DRYDOCK.md](REWRITE-FROM-DRYDOCK.md).
 
 ---
 
 ## Why
 
-The owner runs 500–1,000+ checkouts — personal repos and large
-organizational trees side by side — and asks four things of the tool:
-
-1. **The UI always wins.** Every keypress preempts whatever the background
-   is doing. A 550-repo sweep runs in bounded batches with a UI drain
-   between them; a background burst costs the interface at most one event of
-   latency. No key handler ever spawns a process, touches the network, or
-   walks the filesystem synchronously.
-2. **Scale is a correctness requirement.** A repo whose git state hasn't
-   changed since the last sweep is skipped **without spawning a single
-   process** (an mtime/size fingerprint over `.git` internals). Watching is
-   per-repo and selective — never a recursive watch on a scan root — so a
-   1,000-repo fleet costs tens of thousands of inotify watches, not the
-   kernel's whole budget.
-3. **Organization sync that never lies.** GitHub, GitLab, and Gitea/Forgejo
-   registrations are listed through the provider's own CLI (`gh`, `glab`,
-   `tea`), diffed against disk, and synced **strictly serially** with
-   `pull --ff-only` only. Nothing is ever deleted: orphans are reported,
-   divergent/dirty/detached checkouts are skipped with the reason shown, and
-   a failed provider listing degrades to update-only with a loud error row —
-   an empty listing must never read as "the whole org is gone."
-4. **Honest verdicts.** `?` means nobody checked. A release verdict is
-   placed against the repo's own tagging history. An unfetched repo says
-   `unfetched` instead of inventing an ahead/behind count.
-
+The short version: the owner runs 500–1,000+ checkouts and asks four things
+— a UI that always wins, scale as a correctness requirement, org sync that
+never lies, and honest verdicts. drydock delivers all of it in Rust; the
+rewrite exists because the owner's crew of coding agents builds and
+maintains Go several times faster than Rust, and this is a user-land
+application. The full story, tradeoffs included, lives in
+[REWRITE-FROM-DRYDOCK.md](REWRITE-FROM-DRYDOCK.md).
 
 ## Install
 
