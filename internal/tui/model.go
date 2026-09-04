@@ -91,6 +91,7 @@ const (
 	modeOrgs
 	modeOrgForm
 	modeOwners
+	modeGroups
 )
 
 // agePresets are the 0-4 age presets: activity no older than the duration.
@@ -152,6 +153,7 @@ type model struct {
 	searching   bool
 	searchBuf   string
 	colCursor   int // column picker cursor
+	groupCursor int // group colors overlay cursor
 	cols        columnSet
 
 	// Status line: transient message with TTL, sweep progress, spinner.

@@ -460,7 +460,7 @@ Keymap (table): `j/k/↑/↓` move · `ctrl-d/ctrl-u` half page · `pgup/pgdn` �
 `a` clear · `[ ]` group cycle · `O` org filter (cycles the registered
 orgs, matching repos under each registration's checkout path) · `0-4` age
 presets · `s` sort · `S` reverse · `/` search · `C` columns ·
-`R`/`ctrl-r` rescan · `p` sync repo · `P` sync all (both also on the
+`R`/`ctrl-r` rescan · `G` group colors · `p` sync repo · `P` sync all (both also on the
 detail view; §11.3 pull --ff-only semantics, bounded by `[remote]`
 concurrency and timeout, progress in the operation widget, closing sweep)
 · `t` git TUI · `o` file manager · `T` shell (all three

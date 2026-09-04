@@ -127,7 +127,7 @@ released, needs-release, bare, conflicts, needs-attention, excluded,
 errors, never-fetched) · `&` any/all · `a` clear all · `[` `]` cycle group ·
 `O` cycle org filter · `0-4` age presets · `s` cycle sort · `S` reverse ·
 `/` fuzzy search · `p` sync repo · `P` sync all · `C` column picker ·
-`A` org manager · `R` rescan · `?` help · `q` quit.
+`A` org manager · `G` group colors · `R` rescan · `?` help · `q` quit.
 
 **Hand-offs** (`t`, `o`, `T` — on the table and in the detail view):
 `t` opens a git TUI on the selected repo (detects `lazygit`, `gitui`, `lg`,

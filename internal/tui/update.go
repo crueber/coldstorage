@@ -347,6 +347,8 @@ func (m model) handleKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.keyHelp(key)
 	case modeColumns:
 		return m.keyColumns(key)
+	case modeGroups:
+		return m.keyGroups(key)
 	case modeDetail:
 		return m.keyDetail(key)
 	case modeOrgs:
@@ -473,6 +475,9 @@ func (m model) keyTable(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case keyIs(key, "C"):
 		m.mode = modeColumns
 		m.colCursor = 0
+	case keyIs(key, "G"):
+		m.mode = modeGroups
+		m.groupCursor = 0
 
 	case key.Type == tea.KeyEnter:
 		m.mode = modeDetail

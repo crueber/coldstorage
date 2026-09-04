@@ -295,6 +295,7 @@ func helpGroups() []helpGroup {
 			{"esc", "close"},
 		}},
 		{"overlays", []helpKey{
+			{"G", "group colors"},
 			{"?", "this help"},
 			{"q", "quit"},
 		}},
