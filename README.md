@@ -122,8 +122,8 @@ scroll or move the cursor.
 released, needs-release, bare, conflicts, needs-attention, excluded,
 errors, never-fetched) · `&` any/all · `a` clear all · `[` `]` cycle group ·
 `O` cycle org filter · `0-4` age presets · `s` cycle sort · `S` reverse ·
-`/` fuzzy search · `C` column picker · `A` org manager · `R` rescan ·
-`?` help · `q` quit.
+`/` fuzzy search · `p` sync repo · `P` sync all · `C` column picker ·
+`A` org manager · `R` rescan · `?` help · `q` quit.
 
 **Hand-offs** (`t`, `o`, `T` — on the table and in the detail view):
 `t` opens a git TUI on the selected repo (detects `lazygit`, `gitui`, `lg`,
@@ -164,6 +164,16 @@ Colors follow your shell, not a palette this tool invented. With `theme =
 Set `[ui] theme = "dark"|"light"` to pin it. The verdict grammar — yellow
 dirty, cyan unpushed, magenta needs-release, red conflicts, dim clean — is
 the same in every theme.
+
+## Repo sync
+
+`p` pulls the selected repo, `P` pulls every discovered repo — on the table
+and in the detail view. The semantics are the org sync's, unchanged:
+`pull --ff-only` only, and every refusal (diverged, dirty, detached, no
+upstream) is a skip with the reason shown, never a merge. Progress streams
+into the header's operation widget; the tally lands on the status line and
+a sweep afterward re-probes exactly the repos that moved. `[remote]`
+timeout and concurrency bound the pass.
 
 ## What stays fast
 

@@ -32,12 +32,13 @@ const maxBatch = 32
 type engine struct {
 	send func(msg any) // wired to the program after construction
 
-	cfg        config.Config
-	refsOpts   gitmode.RefsOptions
-	workOpts   gitmode.WorkOptions
-	cacheDir   string
-	watchOn    bool
-	watchDebnc time.Duration
+	cfg         config.Config
+	refsOpts    gitmode.RefsOptions
+	workOpts    gitmode.WorkOptions
+	cacheDir    string
+	watchOn     bool
+	watchDebnc  time.Duration
+	pullTimeout time.Duration
 
 	gate *Gate
 	sem  chan struct{} // probe concurrency cap
@@ -48,6 +49,7 @@ type engine struct {
 
 	sweeping atomic.Bool
 	probing  atomic.Int64
+	pulling  atomic.Bool
 
 	mu         sync.Mutex
 	cache      map[string]RepoState      // last good row per root, for the fingerprint gate
@@ -70,10 +72,11 @@ func newEngine(cfg config.Config, cacheDir string, cache map[string]RepoState) *
 		debounce = d
 	}
 	e := &engine{
-		cfg:        cfg,
-		cacheDir:   cacheDir,
-		watchOn:    cfg.Refresh.Watch,
-		watchDebnc: debounce,
+		cfg:         cfg,
+		cacheDir:    cacheDir,
+		watchOn:     cfg.Refresh.Watch,
+		watchDebnc:  debounce,
+		pullTimeout: pullTimeoutFor(cfg),
 		refsOpts: gitmode.RefsOptions{
 			TagPattern:     cfg.Release.TagPattern,
 			MaxSubjects:    cfg.Release.MaxSubjects,
@@ -104,6 +107,16 @@ func newEngine(cfg config.Config, cacheDir string, cache map[string]RepoState) *
 // Busy reports whether background probes are outstanding — the UI uses it to
 // pick the tick cadence and the spinner.
 func (e *engine) Busy() bool { return e.sweeping.Load() || e.probing.Load() > 0 }
+
+// pullTimeoutFor resolves the per-pull network budget from [remote] timeout
+// (§4): a pull speaks to a remote, so it uses the remote's own budget, not
+// the local-git one.
+func pullTimeoutFor(cfg config.Config) time.Duration {
+	if d, err := config.ParseDuration(cfg.Remote.Timeout); err == nil && d > 0 {
+		return d
+	}
+	return 20 * time.Second
+}
 
 // Start begins the startup sweep unless one is already running.
 func (e *engine) Start() { e.Sweep(false) }

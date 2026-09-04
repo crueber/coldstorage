@@ -182,6 +182,13 @@ type model struct {
 	syncOrg      string
 	syncProgress string
 
+	// The repo sync pass (p / P): pulls one or every checkout, §11.3
+	// semantics, progress in the operation widget.
+	pullRunning bool
+	pullDone    int
+	pullTotal   int
+	pullName    string
+
 	// Detail commit history (§9): the selected repo's subjects, paged in
 	// from gitmode.Log as the owner scrolls.
 	histRoot    string
@@ -253,5 +260,5 @@ func (m *model) notify(format string, args ...any) {
 }
 
 func (m model) busy() bool {
-	return m.sweeping || m.syncRunning || (m.engine != nil && m.engine.Busy())
+	return m.sweeping || m.syncRunning || m.pullRunning || (m.engine != nil && m.engine.Busy())
 }

@@ -49,6 +49,51 @@ type histMsg struct {
 	err     error
 }
 
+// syncRepoSelected pulls the cursor's repo (§12 p); syncAllRepos pulls every
+// discovered repo (§12 P). Both refuse politely while a sweep or another
+// sync owns the background — interleaving them would double-spawn git
+// across the fleet for no information.
+func (m model) syncRepoSelected() (tea.Model, tea.Cmd) {
+	r, ok := m.selectedRepo()
+	if !ok {
+		m.notify("no repo selected")
+		return m, nil
+	}
+	if m.pullRunning {
+		m.notify("repo sync already running")
+		return m, nil
+	}
+	if m.engine == nil || !m.engine.SyncRepos([]string{r.Root}) {
+		m.notify("a sweep is running — sync waits for it")
+		return m, nil
+	}
+	m.pullRunning, m.pullDone, m.pullTotal, m.pullName = true, 0, 1, r.Name
+	m.notify("syncing %s…", r.Name)
+	return m, nil
+}
+
+func (m model) syncAllRepos() (tea.Model, tea.Cmd) {
+	if m.pullRunning {
+		m.notify("repo sync already running")
+		return m, nil
+	}
+	roots := make([]string, 0, len(m.rows))
+	for root := range m.rows {
+		roots = append(roots, root)
+	}
+	if len(roots) == 0 {
+		m.notify("no repos to sync")
+		return m, nil
+	}
+	if m.engine == nil || !m.engine.SyncRepos(roots) {
+		m.notify("a sweep is running — sync waits for it")
+		return m, nil
+	}
+	m.pullRunning, m.pullDone, m.pullTotal, m.pullName = true, 0, len(roots), ""
+	m.notify("syncing %d repos…", len(roots))
+	return m, nil
+}
+
 // tick schedules the next repaint at the cadence the §12 contract fixes.
 func (m model) tick() tea.Cmd {
 	interval := time.Second
@@ -129,6 +174,17 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.rebuildGroups()
 	case warnMsg:
 		m.notify("warning: %v", msg.err)
+
+	case pullProgressMsg:
+		m.pullDone, m.pullTotal, m.pullName = msg.done, msg.total, msg.name
+
+	case pullDoneMsg:
+		m.pullRunning = false
+		m.notify("sync done: %d updated, %d current, %d skipped, %d failed",
+			msg.updated, msg.current, msg.skipped, msg.failed)
+		// §11.3's closing sweep: pulls move fingerprints, and the sweep
+		// re-probes exactly the repos that changed.
+		return m, m.startSweep(false)
 
 	case externalDoneMsg:
 		// The hand-off is over and coldstorage owns the terminal again.
@@ -362,6 +418,10 @@ func (m model) keyDetail(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.openFileManager()
 	case keyIs(key, "T"):
 		return m.openShell()
+	case keyIs(key, "p"):
+		return m.syncRepoSelected()
+	case keyIs(key, "P"):
+		return m.syncAllRepos()
 	}
 	switch {
 	case anyKey(key, "esc", "enter", "q"):
@@ -463,6 +523,10 @@ func (m model) keyTable(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.orgFilter = ""
 		m.search = ""
 		m.sel, m.offset = 0, 0
+	case keyIs(key, "p"):
+		return m.syncRepoSelected()
+	case keyIs(key, "P"):
+		return m.syncAllRepos()
 	case keyIs(key, "O"):
 		// §12: cycle the org filter — all, then each registered org in
 		// config order, then back to all. The filter matches by checkout

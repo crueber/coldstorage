@@ -174,16 +174,27 @@ func cloneOne(src Source, r Repo, opts Opts) Outcome {
 // failures (a dead remote, say) surface as error rows with git's own words.
 func updateOne(opts Opts, name string) Outcome {
 	dir := filepath.Join(opts.Path, name)
+	out := SyncCheckout(dir, opts.Timeout)
+	if out.Name == "" {
+		out.Name = name
+	}
+	return out
+}
+
+// SyncCheckout is the §11.3 update pass over one checkout directory — the
+// same pull --ff-only semantics the org sync uses, for a repo addressed by
+// its own root. The Outcome's Name is left empty for the caller to fill.
+func SyncCheckout(dir string, timeout time.Duration) Outcome {
 	if err := requireDir(dir); err != nil {
-		return Outcome{Action: "error", Name: name, Detail: err.Error()}
+		return Outcome{Action: "error", Detail: err.Error()}
 	}
 
-	out, err := gitmode.RunGit(dir, opts.Timeout, "pull", "--ff-only")
+	out, err := gitmode.RunGit(dir, timeout, "pull", "--ff-only")
 	if err == nil {
 		if strings.Contains(out, "Already up to date") {
-			return Outcome{Action: "current", Name: name, Detail: "already up to date"}
+			return Outcome{Action: "current", Detail: "already up to date"}
 		}
-		return Outcome{Action: "updated", Name: name, Detail: firstLine(out)}
+		return Outcome{Action: "updated", Detail: firstLine(out)}
 	}
 
 	msg := strings.ToLower(err.Error())
@@ -191,19 +202,19 @@ func updateOne(opts Opts, name string) Outcome {
 	case strings.Contains(msg, "not possible to fast-forward"),
 		strings.Contains(msg, "divergent branches"),
 		strings.Contains(msg, "need to specify how to reconcile"):
-		return Outcome{Action: "skipped", Name: name, Detail: "diverged from upstream; left alone"}
+		return Outcome{Action: "skipped", Detail: "diverged from upstream; left alone"}
 	case strings.Contains(msg, "would be overwritten by merge"),
 		strings.Contains(msg, "cannot pull with rebase"),
 		strings.Contains(msg, "unstaged changes"),
 		strings.Contains(msg, "uncommitted changes"):
-		return Outcome{Action: "skipped", Name: name, Detail: "working tree has local changes; left alone"}
+		return Outcome{Action: "skipped", Detail: "working tree has local changes; left alone"}
 	case strings.Contains(msg, "not currently on a branch"),
 		strings.Contains(msg, "detached head"):
-		return Outcome{Action: "skipped", Name: name, Detail: "detached HEAD; left alone"}
+		return Outcome{Action: "skipped", Detail: "detached HEAD; left alone"}
 	case strings.Contains(msg, "no tracking information"):
-		return Outcome{Action: "skipped", Name: name, Detail: "branch has no upstream; left alone"}
+		return Outcome{Action: "skipped", Detail: "branch has no upstream; left alone"}
 	}
-	return Outcome{Action: "error", Name: name, Detail: err.Error()}
+	return Outcome{Action: "error", Detail: err.Error()}
 }
 
 // requireDir turns a missing directory into a loud, named error instead of

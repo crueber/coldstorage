@@ -277,6 +277,10 @@ func helpGroups() []helpGroup {
 			{"S", "reverse sort"},
 			{"/", "fuzzy search group/name/branch"},
 		}...)},
+		{"sync", []helpKey{
+			{"p", "sync (pull) the selected repo"},
+			{"P", "sync every repo"},
+		}},
 		{"hand-offs", []helpKey{
 			{"t", "git TUI on the selected repo (lazygit, gitui, tig)"},
 			{"o", "TUI file manager (superfile, yazi, ranger, nnn)"},

@@ -216,6 +216,14 @@ func (m model) opWidget() string {
 	switch {
 	case m.syncRunning:
 		label, detail = "sync "+m.syncOrg, m.syncProgress
+	case m.pullRunning:
+		label = "sync"
+		if m.pullTotal > 0 {
+			detail = itoa(minInt(m.pullDone, m.pullTotal)) + "/" + itoa(m.pullTotal)
+		}
+		if m.pullName != "" {
+			detail += " · " + m.pullName
+		}
 	case m.sweeping:
 		label = "sweep"
 		if m.sweepTotal > 0 {
@@ -383,7 +391,7 @@ func stateRowBase(r RepoState, selected bool) lipgloss.Style {
 
 // footerView is the key hints (§12 footer) plus the selection context.
 func (m model) footerView(rows []RepoState, rowsHeight int) string {
-	hints := "j/k move · ⏎ detail · d/filters · s sort · / search · t gitui · o files · T shell · C columns · A orgs · R rescan · ? help · q quit"
+	hints := "j/k move · ⏎ detail · d/filters · p sync · P sync all · s sort · / search · t gitui · o files · T shell · C columns · A orgs · R rescan · ? help · q quit"
 	position := ""
 	if len(rows) > 0 {
 		position = itoa(m.sel+1) + "/" + itoa(len(rows))
