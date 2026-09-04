@@ -18,16 +18,6 @@ Why a rewrite exists, and why Go, is its own story:
 
 ---
 
-## Why
-
-The short version: the owner runs 500–1,000+ checkouts and asks four things
-— a UI that always wins, scale as a correctness requirement, org sync that
-never lies, and honest verdicts. drydock delivers all of it in Rust; the
-rewrite exists because the owner's crew of coding agents builds and
-maintains Go several times faster than Rust, and this is a user-land
-application. The full story, tradeoffs included, lives in
-[REWRITE-FROM-DRYDOCK.md](REWRITE-FROM-DRYDOCK.md).
-
 ## Install
 
 **Homebrew** (macOS and Linux):
