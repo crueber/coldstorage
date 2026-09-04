@@ -159,13 +159,18 @@ func (e *engine) Close() {
 func (e *engine) runSweep(force bool) {
 	e.sendMsg(sweepPhaseMsg{phase: "discovering"})
 
+	// One snapshot at the top: a config save landing mid-sweep (the org
+	// manager's §11.4 root wiring) must not hand a running walk a
+	// half-updated config. The sweep keeps the config it started with.
+	cfg := e.cfgSnapshot()
+
 	repos, _, err := discovery.Discover(discovery.Options{
-		Roots:             expandRoots(e.cfg.Roots),
-		MaxDepth:          e.cfg.MaxDepth,
-		FollowNestedRepos: e.cfg.FollowNestedRepos,
-		FollowSymlinks:    e.cfg.FollowSymlinks,
-		Exclude:           e.cfg.Exclude,
-		Prune:             e.cfg.Prune,
+		Roots:             expandRoots(cfg.Roots),
+		MaxDepth:          cfg.MaxDepth,
+		FollowNestedRepos: cfg.FollowNestedRepos,
+		FollowSymlinks:    cfg.FollowSymlinks,
+		Exclude:           cfg.Exclude,
+		Prune:             cfg.Prune,
 	})
 	if err != nil {
 		e.sendMsg(warnMsg{err: err})
@@ -173,7 +178,7 @@ func (e *engine) runSweep(force bool) {
 	e.sendMsg(sweepPhaseMsg{phase: "discovered", total: len(repos)})
 
 	if e.watchOn {
-		e.ensureWatcher(rootsOf(repos))
+		e.ensureWatcher(rootsOf(repos), cfg.Prune)
 	}
 	e.reconcileWatcher(rootsOf(repos))
 
@@ -294,7 +299,7 @@ func (e *engine) collect() {
 // ensureWatcher creates the fleet watcher once, after the first discovery
 // walk, and drains its events and warnings for the rest of the session
 // (§13). Registration failures surface as warnings, once.
-func (e *engine) ensureWatcher(repoRoots []string) {
+func (e *engine) ensureWatcher(repoRoots []string, prune []string) {
 	e.mu.Lock()
 	if e.watcher != nil || !e.watchOn {
 		e.mu.Unlock()
@@ -302,7 +307,7 @@ func (e *engine) ensureWatcher(repoRoots []string) {
 	}
 	e.mu.Unlock()
 
-	w, err := watcher.New(e.watchDebnc, e.cfg.Prune, repoRoots)
+	w, err := watcher.New(e.watchDebnc, prune, repoRoots)
 	if err != nil {
 		e.sendMsg(warnMsg{err: err})
 		return

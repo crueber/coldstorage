@@ -88,6 +88,9 @@ const (
 	modeDetail
 	modeHelp
 	modeColumns
+	modeOrgs
+	modeOrgForm
+	modeOwners
 )
 
 // agePresets are the 0-4 age presets: activity no older than the duration.
@@ -156,9 +159,19 @@ type model struct {
 	sweeping   bool
 	sweepTotal int
 	swept      int
-	spinnerIdx int
-	warnings   []string
-	lastSweep  time.Time
+
+	// Org manager state (§12 org manager): the list cursor and remove
+	// confirm, the form (with its probe results), and the sync machinery.
+	// Last-sync stamps are session memory — orgsync keeps no persistent
+	// journal, so a registration syncs "never" until it syncs here.
+	orgSel      int
+	orgConfirm  bool
+	orgForm     orgForm
+	orgLastSync map[string]time.Time
+	syncRunning bool
+	spinnerIdx  int
+	warnings    []string
+	lastSweep   time.Time
 }
 
 // newModel assembles the dashboard: cached rows paint the first frame
@@ -175,6 +188,7 @@ func newModel(cfg config.Config, cacheDir string, cached map[string]RepoState, w
 		cols:        defaultColumns(),
 		warnings:    warnings,
 		lastSweep:   time.Now(),
+		orgLastSync: map[string]time.Time{},
 	}
 	for _, r := range cached {
 		m.rows[r.Root] = r
@@ -216,11 +230,7 @@ func (m *model) rebuildGroups() {
 // notify sets a transient status message with the §12 TTL.
 func (m *model) notify(format string, args ...any) {
 	m.status = fmt.Sprintf(format, args...)
-	m.statusAt = time.Now()
 }
-
-// busy reports whether background work is in flight, which drives the tick
-// cadence (250ms busy, ~1s idle, §12) and the spinner.
 func (m model) busy() bool {
-	return m.sweeping || (m.engine != nil && m.engine.Busy())
+	return m.sweeping || m.syncRunning || (m.engine != nil && m.engine.Busy())
 }

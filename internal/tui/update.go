@@ -115,10 +115,83 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.lastSweep = time.Now()
 		m.pruneRows(msg.roots)
 		m.rebuildGroups()
-		m.notify("sweep done: %d repos", len(msg.roots))
-
 	case warnMsg:
 		m.notify("warning: %v", msg.err)
+
+	// Org manager messages (§12 org manager). All of them arrive from
+	// command goroutines — the probe, the owner fetch, the sync engine, and
+	// the config write are network or disk work the UI thread never waits on.
+	case orgAuthMsg:
+		f := &m.orgForm
+		f.probing = false
+		f.probeDone = true
+		f.authed = msg.authed
+		// A fresh form preselects the first authenticated provider/host, so
+		// the common case is one enter away from saving (§11.1).
+		if f.editing < 0 && f.provider == "" && len(msg.authed) > 0 {
+			f.provider = msg.authed[0].Provider
+			if len(msg.authed[0].Hosts) > 0 {
+				f.host = msg.authed[0].Hosts[0]
+			}
+			f.autoFillPath(m.cfg)
+		}
+
+	case orgOwnersMsg:
+		m.orgForm.ownersLoad = false
+		m.orgForm.owners = msg.owners
+		m.orgForm.ownerCursor = 0
+
+	case orgSyncRowMsg:
+		// §11.5: report rows stream into the progress line.
+		if msg.action != "" {
+			m.notify("org sync: %s %s %s", msg.action, msg.name, msg.detail)
+		} else if msg.total > 0 {
+			m.notify("org sync: %s (%d/%d)", msg.name, msg.done, msg.total)
+		} else {
+			m.notify("org sync: %s", msg.name)
+		}
+
+	case orgSyncDoneMsg:
+		m.syncRunning = false
+		now := time.Now()
+		for _, k := range msg.keys {
+			m.orgLastSync[k] = now
+		}
+		counts := map[string]int{}
+		for _, o := range msg.outcomes {
+			counts[o.Action]++
+		}
+		m.notify("org sync done: %d cloned, %d updated, %d current, %d skipped, %d orphaned, %d errors",
+			counts["cloned"], counts["updated"], counts["current"], counts["skipped"], counts["orphaned"], counts["error"])
+		// §11.3: a full sweep runs after sync so fresh clones appear
+		// immediately; the fingerprint gate keeps it cheap.
+		return m, m.startSweep(false)
+
+	case orgSavedMsg:
+		if msg.err != nil {
+			m.notify("config: %v", msg.err)
+			if msg.close {
+				// The form stays open with the failure rendered in-overlay:
+				// a lost edit is how an owner stops trusting the save key.
+				m.orgForm.refusal = "config: " + msg.err.Error()
+			}
+			return m, nil
+		}
+		m.cfg = msg.cfg
+		if m.engine != nil {
+			m.engine.setConfig(msg.cfg)
+		}
+		if msg.close {
+			m.mode = modeOrgs
+			m.orgForm = orgForm{}
+		} else {
+			// A removal shrank the list; keep the cursor on the list.
+			if m.orgSel >= len(m.cfg.Orgs) {
+				m.orgSel = len(m.cfg.Orgs) - 1
+			}
+		}
+		m.orgConfirm = false
+		m.notify("%s", msg.note)
 	}
 
 	return m, nil
@@ -165,6 +238,12 @@ func (m model) handleKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.keyColumns(key)
 	case modeDetail:
 		return m.keyDetail(key)
+	case modeOrgs:
+		return m.keyOrgs(key)
+	case modeOrgForm:
+		return m.keyOrgForm(key)
+	case modeOwners:
+		return m.keyOwners(key)
 	default:
 		return m.keyTable(key)
 	}
@@ -264,8 +343,15 @@ func (m model) keyTable(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case key.Type == tea.KeyEnter:
 		m.mode = modeDetail
 		m.detailOff = 0
+	case keyIs(key, "A"):
+		// §12: the org manager overlay. The cursor keeps its position
+		// between visits so a sync of the same org is one key away.
+		if m.orgSel >= len(m.cfg.Orgs) {
+			m.orgSel = len(m.cfg.Orgs) - 1
+		}
+		m.mode = modeOrgs
+		m.orgConfirm = false
 
-	// Movement.
 	case anyKey(key, "j", "down"):
 		m.move(1)
 	case anyKey(key, "k", "up"):

@@ -66,6 +66,12 @@ func (m model) View() string {
 		return m.columnsView()
 	case modeDetail:
 		return m.detailView()
+	case modeOrgs:
+		return m.orgsView()
+	case modeOrgForm:
+		return m.orgFormView()
+	case modeOwners:
+		return m.ownersView()
 	default:
 		return m.tableView()
 	}
@@ -302,7 +308,7 @@ func stateRowBase(r RepoState, selected bool) lipgloss.Style {
 
 // footerView is the key hints (§12 footer) plus the selection context.
 func (m model) footerView(rows []RepoState, rowsHeight int) string {
-	hints := "j/k move · ⏎ detail · d/filters · s sort · / search · C columns · R rescan · ? help · q quit"
+	hints := "j/k move · ⏎ detail · d/filters · s sort · / search · C columns · A orgs · R rescan · ? help · q quit"
 	position := ""
 	if len(rows) > 0 {
 		position = itoa(m.sel+1) + "/" + itoa(len(rows))

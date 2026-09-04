@@ -206,9 +206,13 @@ func helpGroups() []helpGroup {
 			{"S", "reverse sort"},
 			{"/", "fuzzy search group/name/branch"},
 		}...)},
-		{"table & fleet", []helpKey{
-			{"C", "column picker"},
-			{"R / ctrl-r", "rescan the fleet"},
+		{"org manager", []helpKey{
+			{"A", "org manager overlay"},
+			{"j/k", "move selection"},
+			{"a / e", "add / edit an org"},
+			{"x x", "remove org (checkouts untouched)"},
+			{"s / S", "sync selected / sync all enabled"},
+			{"esc", "close"},
 		}},
 		{"overlays", []helpKey{
 			{"?", "this help"},
