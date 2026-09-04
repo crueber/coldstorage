@@ -152,7 +152,17 @@ func cloneOne(src Source, r Repo, opts Opts) Outcome {
 	}
 	target := filepath.Join(opts.Path, r.Name)
 	if _, err := os.Stat(target); err == nil {
-		return Outcome{Action: "error", Name: r.Name, Detail: "checkout directory already exists; nothing touched"}
+		if !IsCloneDebris(target) {
+			return Outcome{Action: "error", Name: r.Name, Detail: "checkout directory already exists; nothing touched"}
+		}
+		// The directory is an interrupted clone's corpse — .git debris with
+		// no HEAD and no working-tree files, so nothing of the user's is
+		// in it. Left alone it would wedge the repo forever: the update
+		// pass fails on a dead git dir and the clone pass refuses on the
+		// existing directory. Remove the debris and clone anew.
+		if err := os.RemoveAll(target); err != nil {
+			return Outcome{Action: "error", Name: r.Name, Detail: "clearing clone debris: " + err.Error()}
+		}
 	} else if !errors.Is(err, fs.ErrNotExist) {
 		return Outcome{Action: "error", Name: r.Name, Detail: "stat: " + err.Error()}
 	}
@@ -190,6 +200,10 @@ func SyncCheckout(dir string, timeout time.Duration) Outcome {
 	}
 
 	out, err := gitmode.RunGit(dir, timeout, "pull", "--ff-only")
+	if err != nil && strings.Contains(strings.ToLower(err.Error()), "not a git repository") {
+		return Outcome{Action: "error",
+			Detail: "broken checkout: the directory is not a git repository — remove it and re-clone with the org sync"}
+	}
 	if err == nil {
 		if strings.Contains(out, "Already up to date") {
 			return Outcome{Action: "current", Detail: "already up to date"}
@@ -215,6 +229,31 @@ func SyncCheckout(dir string, timeout time.Duration) Outcome {
 		return Outcome{Action: "skipped", Detail: "branch has no upstream; left alone"}
 	}
 	return Outcome{Action: "error", Detail: err.Error()}
+}
+
+// IsCloneDebris reports whether dir is the corpse of an interrupted clone:
+// no HEAD anywhere (a dead git dir, not a bare repo) and no file outside
+// the .git debris. Such a directory holds nothing of the user's, so the
+// sync may clear it and clone anew.
+func IsCloneDebris(dir string) bool {
+	if _, err := os.Stat(filepath.Join(dir, "HEAD")); err == nil {
+		return false // bare repo: HEAD + refs
+	}
+	if _, err := os.Stat(filepath.Join(dir, ".git", "HEAD")); err == nil {
+		return false // a live checkout
+	}
+	userFiles := false
+	filepath.WalkDir(dir, func(p string, d fs.DirEntry, err error) error {
+		if err != nil || d.IsDir() {
+			return nil
+		}
+		if !strings.Contains(filepath.ToSlash(p), "/.git/") {
+			userFiles = true
+			return filepath.SkipAll
+		}
+		return nil
+	})
+	return !userFiles
 }
 
 // requireDir turns a missing directory into a loud, named error instead of

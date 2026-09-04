@@ -4,6 +4,8 @@
 package tui
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/crueber/coldstorage/internal/config"
@@ -71,5 +73,29 @@ func TestSaveCandidateReplacesOnEdit(t *testing.T) {
 	}
 	if cand.Orgs[0].Owner != "other" {
 		t.Errorf("later registration must win on collision: %+v", cand.Orgs[0])
+	}
+}
+
+// The wedged-pricing incident: an interrupted clone left .git debris with
+// no HEAD, and orgDiskRepos counted it as a checkout — the repo could
+// neither update nor re-clone. Debris is not a checkout.
+func TestOrgDiskReposExcludesDebris(t *testing.T) {
+	path := t.TempDir()
+	dead := filepath.Join(path, "pricing")
+	if err := os.MkdirAll(filepath.Join(dead, ".git", "objects"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	live := filepath.Join(path, "walhub")
+	if err := os.MkdirAll(filepath.Join(live, ".git"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	os.WriteFile(filepath.Join(live, ".git", "HEAD"), []byte("ref: refs/heads/main"), 0o644)
+
+	got := orgDiskRepos(path)
+	if len(got) != 1 || got[0] != "walhub" {
+		t.Errorf("orgDiskRepos = %v, want only the live checkout", got)
+	}
+	if !isCheckoutDir(live) {
+		t.Error("the live checkout must still count")
 	}
 }

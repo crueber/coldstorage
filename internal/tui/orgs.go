@@ -510,8 +510,19 @@ func orgDiskRepos(path string) []string {
 }
 
 func isCheckoutDir(dir string) bool {
-	if _, err := os.Lstat(filepath.Join(dir, ".git")); err == nil {
-		return true
+	if dot, err := os.Lstat(filepath.Join(dir, ".git")); err == nil {
+		// A .git file is a worktree or submodule. A .git directory is only
+		// a checkout when it is a real git dir: an interrupted clone leaves
+		// .git debris (a lone objects dir, no HEAD) behind, and a directory
+		// with no HEAD would fail every pull forever — that is how
+		// decisiv/pricing wedged.
+		if !dot.IsDir() || dot.Mode()&os.ModeSymlink != 0 {
+			return true
+		}
+		if _, err := os.Stat(filepath.Join(dir, ".git", "HEAD")); err == nil {
+			return true
+		}
+		return false
 	}
 	// Bare: HEAD plus refs (§5 — bare repos count as repos).
 	if _, err := os.Stat(filepath.Join(dir, "HEAD")); err != nil {

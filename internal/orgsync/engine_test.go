@@ -3,6 +3,7 @@ package orgsync
 import (
 	"errors"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"reflect"
 	"strings"
@@ -357,5 +358,95 @@ func TestPlanSyncTreatsMissingPathAsEmptyDisk(t *testing.T) {
 	assertOutcome(t, out, 0, "cloned", "r1")
 	if _, err := os.Stat(filepath.Join(absent, "r1", ".git")); err != nil {
 		t.Fatalf("the clone created the checkout path: %v", err)
+	}
+}
+
+// The wedged-repo incident: an interrupted clone left .git debris (a lone
+// objects dir, no HEAD) and the repo could neither be updated (dead git
+// dir) nor re-cloned (directory exists) — stuck forever.
+func TestCloneOneCleansDebris(t *testing.T) {
+	path := t.TempDir()
+	name := "pricing"
+	target := filepath.Join(path, name)
+	if err := os.MkdirAll(filepath.Join(target, ".git", "objects", "pack"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	os.WriteFile(filepath.Join(target, ".git", "objects", "pack", "tmp_rev_X"), []byte("junk"), 0o644)
+
+	// A local origin to clone from keeps the test network-free.
+	origin := t.TempDir() + "/origin.git"
+	if out, err := exec.Command("git", "init", "-q", "--bare", origin).CombinedOutput(); err != nil {
+		t.Fatalf("init bare: %v: %s", err, out)
+	}
+	seed := t.TempDir() + "/seed"
+	runGitCmd(t, "clone", "-q", origin, seed)
+	runGitCmd(t, "-C", seed, "config", "user.email", "t@t")
+	runGitCmd(t, "-C", seed, "config", "user.name", "t")
+	os.WriteFile(filepath.Join(seed, "f.txt"), []byte("one"), 0o644)
+	runGitCmd(t, "-C", seed, "add", ".")
+	runGitCmd(t, "-C", seed, "commit", "-q", "-m", "one")
+	runGitCmd(t, "-C", seed, "push", "-q", "origin", "HEAD")
+
+	src := Source{Provider: "github", Host: "github.com", Owner: "acme", Path: path, Protocol: "https"}
+	repos := []Repo{{Name: name, OwnerLogin: "acme", HTTPSURL: origin}}
+
+	// The disk list comes from orgDiskRepos, which excludes clone debris —
+	// so the plan classifies pricing as ToClone and cloneOne clears the
+	// corpse before cloning.
+	out := Execute(src, NewPlan(repos, nil, src), Opts{Path: path, Timeout: time.Minute}, func(int, int, string) {})
+	if len(out) == 0 || out[0].Action != "cloned" {
+		t.Fatalf("outcome = %+v, want a clone", out)
+	}
+	head := filepath.Join(target, ".git", "HEAD")
+	if _, err := os.Stat(head); err != nil {
+		t.Fatalf("debris was not replaced with a clone: %v", err)
+	}
+}
+
+func TestIsCloneDebris(t *testing.T) {
+	dead := t.TempDir()
+	os.MkdirAll(filepath.Join(dead, ".git", "objects"), 0o755)
+	if !IsCloneDebris(dead) {
+		t.Error("a .git dir with no HEAD and no user files is debris")
+	}
+
+	live := t.TempDir()
+	os.MkdirAll(filepath.Join(live, ".git"), 0o755)
+	os.WriteFile(filepath.Join(live, ".git", "HEAD"), []byte("ref: refs/heads/main"), 0o644)
+	if IsCloneDebris(live) {
+		t.Error("a live checkout is not debris")
+	}
+
+	mixed := t.TempDir()
+	os.MkdirAll(filepath.Join(mixed, ".git", "objects"), 0o755)
+	os.WriteFile(filepath.Join(mixed, "main.go"), []byte("package x"), 0o644)
+	if IsCloneDebris(mixed) {
+		t.Error("a directory with user files outside .git is not debris")
+	}
+
+	bare := t.TempDir()
+	os.MkdirAll(filepath.Join(bare, "refs"), 0o755)
+	os.WriteFile(filepath.Join(bare, "HEAD"), []byte("ref: refs/heads/main"), 0o644)
+	if IsCloneDebris(bare) {
+		t.Error("a bare repo is not debris")
+	}
+}
+
+func TestSyncCheckoutNamesBrokenCheckout(t *testing.T) {
+	dead := t.TempDir()
+	os.MkdirAll(filepath.Join(dead, ".git", "objects"), 0o755)
+	out := SyncCheckout(dead, time.Minute)
+	if out.Action != "error" {
+		t.Fatalf("action = %q, want error", out.Action)
+	}
+	if !strings.Contains(out.Detail, "broken checkout") {
+		t.Errorf("detail = %q, want the broken-checkout guidance", out.Detail)
+	}
+}
+
+func runGitCmd(t *testing.T, args ...string) {
+	t.Helper()
+	if out, err := exec.Command("git", args...).CombinedOutput(); err != nil {
+		t.Fatalf("git %v: %v: %s", args, err, out)
 	}
 }
