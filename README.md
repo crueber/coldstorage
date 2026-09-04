@@ -30,14 +30,22 @@ application. The full story, tradeoffs included, lives in
 
 ## Install
 
-Download a release package from the
-[releases page](https://github.com/crueber/coldstorage/releases) — a
-tarball per platform (zip on Windows) with the binary, the docs, and a
-`checksums.txt`:
+**Homebrew** (macOS and Linux):
 
 ```sh
-curl -fsSL https://github.com/crueber/coldstorage/releases/latest/download/coldstorage_<version>_Linux_x86_64.tar.gz | tar xz
+brew install crueber/tap/coldstorage
 ```
+
+**Linux / anywhere with a shell** — installs to `~/.local/bin`:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/crueber/coldstorage/main/install.sh | sh
+```
+
+Set `COLDSTORAGE_INSTALL_DIR` to install somewhere else. Every release also
+ships a tarball per platform (zip on Windows) with the binary, the docs, and
+a `checksums.txt` on the
+[releases page](https://github.com/crueber/coldstorage/releases).
 
 Or let Go build it:
 
@@ -202,7 +210,7 @@ GoReleaser. The config is `.goreleaser.yaml`; the pipeline is
 
 - **[drydock](https://github.com/yetidevworks/drydock)** by
   [Andy Miller](https://github.com/yetidevworks) (`yetidevworks`) — the
-  original Rust implementation and the source of every idea here: the
+  original Rust implementation and is the inspiration for this project: the
   dashboard, the git semantics, the release logic, the org sync, and the
   spec this port was built against. coldstorage exists because of it.
 - Built with [Bubble Tea](https://github.com/charmbracelet/bubbletea) and
