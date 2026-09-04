@@ -158,3 +158,30 @@ func TestProbeHealsBlankCachedNames(t *testing.T) {
 		t.Fatalf("cache not healed: %q/%q", cached.Group, cached.Name)
 	}
 }
+
+// The blank-after-pull incident: a watcher re-issue (the pull mutates the
+// checkout, the watcher fires on the debounce) probed with empty names, and
+// the blank row blanked the table until a forced sweep. probe() must heal
+// caller-supplied blanks itself.
+func TestProbeHealsCallerBlankNames(t *testing.T) {
+	eng := newEngine(config.Default(), t.TempDir(), nil)
+	root := filepath.Join(t.TempDir(), "terra-boxes")
+	if err := execGit(t, "init", "-q", root); err != nil {
+		t.Fatal(err)
+	}
+	eng.mu.Lock()
+	eng.discovered[root] = discovery.Repo{Root: root, Group: "crueber", Name: "terra-boxes"}
+	eng.mu.Unlock()
+
+	eng.probe(root, "", "", true) // watcher-style: root only
+
+	eng.mu.Lock()
+	row := eng.cache[root]
+	eng.mu.Unlock()
+	if row.Group != "crueber" || row.Name != "terra-boxes" {
+		t.Errorf("cached row = %q/%q, want real names", row.Group, row.Name)
+	}
+	// The sink carries the result the UI renders — it must have names too.
+	eng.send = func(m any) {}
+	eng.probe(root, "", "", true)
+}

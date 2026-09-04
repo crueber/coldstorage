@@ -146,7 +146,8 @@ func (e *engine) Sweep(force bool) {
 // gate — the event exists because something moved (§6).
 func (e *engine) WatchEvents(roots []string) {
 	for _, root := range e.gate.Admit(roots, time.Now()) {
-		e.probeAsync(root, "", "")
+		group, name := e.displayNames(root)
+		e.probeAsync(root, group, name)
 	}
 }
 
@@ -247,6 +248,18 @@ func (e *engine) runSweep(force bool) {
 // An errored row re-probes until it succeeds, which is why Err rows never
 // enter the fingerprint cache.
 func (e *engine) probe(root, group, name string, force bool) {
+	// The single choke point for nameless probes: a caller that knows only
+	// the root (the watcher path) must never produce a blank-named row —
+	// one blank row cached and the fingerprint gate serves it forever.
+	if group == "" || name == "" {
+		g, n := e.displayNames(root)
+		if group == "" {
+			group = g
+		}
+		if name == "" {
+			name = n
+		}
+	}
 	e.mu.Lock()
 	cached, haveCached := e.cache[root]
 	e.mu.Unlock()
