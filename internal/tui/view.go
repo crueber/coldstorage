@@ -294,6 +294,12 @@ func (m model) statusView() string {
 	if m.searching {
 		return styles.unpushed.Render("/" + m.searchBuf + "▌")
 	}
+	// Startup warnings outrank transient notifications: the sweep starts
+	// immediately, and its first progress message must not be the thing
+	// that hides "config: ... using defaults" (§4).
+	if w := m.warningLine(); w != "" {
+		return styles.warn.Render(truncate(w, maxInt(1, m.width)))
+	}
 	if m.status != "" && time.Since(m.statusAt) < statusTTL {
 		style := styles.status
 		if strings.HasPrefix(m.status, "warning:") {

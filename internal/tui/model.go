@@ -9,6 +9,7 @@ package tui
 import (
 	"fmt"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/crueber/coldstorage/internal/config"
@@ -251,6 +252,19 @@ func (m *model) rebuildGroups() {
 	if m.group != "" && !seen[m.group] {
 		m.group = "" // the filtered group vanished from the fleet
 	}
+}
+
+// warningLine renders the startup warnings main handed over: a config that
+// failed to load or org registrations with problems (§4, §11). These are not
+// transient chatter — they explain why the dashboard is running on defaults
+// against roots the owner did not choose — so the status line keeps showing
+// them until the first keypress instead of letting the sweep's progress
+// notifications bury them.
+func (m model) warningLine() string {
+	if len(m.warnings) == 0 {
+		return ""
+	}
+	return "warning: " + strings.Join(m.warnings, "; ")
 }
 
 // notify sets a transient status message with the §12 TTL. The stamp is

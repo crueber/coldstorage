@@ -116,6 +116,13 @@ prevents; read it before touching the area.
     height lines — the renderer keeps the LAST height lines, and one extra
     line scrolls the header (and every statistic) off the top. frameLines
     counts every non-data line the view writes.
+14. **Config discovery is file-based, and load failures are visible**
+    (§3–4): on macOS an existing `~/.config/coldstorage/config.toml` wins
+    over Application Support, but a bare directory must not — an empty
+    `~/.config/coldstorage` once shadowed a real config and silently put the
+    owner back on the default `~/Projects` root. A config that fails to load
+    falls back to defaults with a status-line warning that survives sweep
+    chatter until the first keypress.
 
 ## Conventions
 

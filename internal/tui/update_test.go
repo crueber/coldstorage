@@ -270,6 +270,36 @@ func TestUpdateWarnSurfaces(t *testing.T) {
 	}
 }
 
+// §4: a config that fails to load falls back to defaults with a *visible*
+// warning. The sweep starts on the same frame, so the warning must outrank
+// transient progress messages, and it must stay until the owner has had a
+// chance to read it.
+func TestStartupWarningsStayVisibleUntilAKey(t *testing.T) {
+	cfg := config.Default()
+	cfg.Roots = []string{t.TempDir()}
+	cfg.Refresh.Watch = false
+	const warning = `config: /Users/me/.config/coldstorage/config.toml: unknown key "root"; using defaults`
+
+	m := newModel(cfg, t.TempDir(), nil, []string{warning}, nil)
+	next, _ := m.Update(tea.WindowSizeMsg{Width: 160, Height: 30})
+	m = next.(model)
+
+	if !strings.Contains(m.View(), "using defaults") {
+		t.Fatalf("startup warning not visible:\n%s", m.View())
+	}
+
+	next, _ = m.Update(sweepPhaseMsg{phase: "discovering"})
+	m = next.(model)
+	if !strings.Contains(m.View(), "using defaults") {
+		t.Fatalf("sweep progress buried the startup warning:\n%s", m.View())
+	}
+
+	m, _ = sendKey(t, m, "j")
+	if strings.Contains(m.View(), "using defaults") {
+		t.Fatalf("a keypress did not dismiss the startup warning:\n%s", m.View())
+	}
+}
+
 // The frame test: the initial model renders the header with fleet counts
 // and the table's column frame with its rows.
 func TestInitialFrame(t *testing.T) {

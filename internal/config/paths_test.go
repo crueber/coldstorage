@@ -58,38 +58,79 @@ func TestResolvePathsPlatformDefaults(t *testing.T) {
 	}
 }
 
-func TestResolvePathsMacSyncedConfigRule(t *testing.T) {
-	if runtime.GOOS != "darwin" {
-		t.Skip("the synced-config override only applies on macOS")
-	}
+// TestResolveConfigDirMacLayout drives the macOS rule with a synthetic GOOS,
+// so it runs on every platform. The regression it pins: an empty
+// ~/.config/coldstorage must not shadow a real config.toml in Application
+// Support, and a config.toml in ~/.config must still win when it exists.
+func TestResolveConfigDirMacLayout(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("HOME", home)
-	t.Setenv("XDG_CONFIG_HOME", "")
-	t.Setenv("XDG_CACHE_HOME", "")
+	platformRoot := filepath.Join(t.TempDir(), "Library", "Application Support")
+	legacy := filepath.Join(home, ".config", "coldstorage")
+	platformDir := filepath.Join(platformRoot, "coldstorage")
 
-	// Without ~/.config/coldstorage the platform default wins.
-	p, err := ResolvePaths()
+	// Neither location has a config yet: writes go to the platform default.
+	if got := resolveConfigDir("darwin", home, platformRoot); got != platformDir {
+		t.Fatalf("fresh install ConfigDir = %q, want %q", got, platformDir)
+	}
+
+	// A real config in Application Support is honored even when an empty
+	// ~/.config/coldstorage tree exists. The old directory-based check
+	// picked the empty tree and silently ran on defaults.
+	if err := os.MkdirAll(legacy, 0o755); err != nil {
+		t.Fatalf("mkdir legacy: %v", err)
+	}
+	if err := os.MkdirAll(platformDir, 0o755); err != nil {
+		t.Fatalf("mkdir platform: %v", err)
+	}
+	writeConfigFile(t, filepath.Join(platformDir, "config.toml"), `roots = ["~/code"]`)
+	got := resolveConfigDir("darwin", home, platformRoot)
+	if got != platformDir {
+		t.Fatalf("ConfigDir = %q, want the Application Support config", got)
+	}
+	cfg, err := Load(filepath.Join(got, "config.toml"))
 	if err != nil {
-		t.Fatalf("ResolvePaths: %v", err)
+		t.Fatalf("Load: %v", err)
 	}
-	if p.ConfigDir != filepath.Join(home, "Library", "Application Support", "coldstorage") {
-		t.Errorf("ConfigDir = %q, want the macOS platform default", p.ConfigDir)
+	if len(cfg.Roots) != 1 || cfg.Roots[0] != "~/code" {
+		t.Errorf("Roots = %v, want the Application Support config's roots", cfg.Roots)
 	}
 
-	// An existing ~/.config/coldstorage means the config was synced there
-	// by a dotfile manager; it must keep working without a migration.
-	if err := os.MkdirAll(filepath.Join(home, ".config", "coldstorage"), 0o755); err != nil {
+	// Once the owner has a config synced under ~/.config, that file wins.
+	writeConfigFile(t, filepath.Join(legacy, "config.toml"), `roots = ["~/dev"]`)
+	got = resolveConfigDir("darwin", home, platformRoot)
+	if got != legacy {
+		t.Fatalf("ConfigDir = %q, want the synced ~/.config location", got)
+	}
+	cfg, err = Load(filepath.Join(got, "config.toml"))
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if len(cfg.Roots) != 1 || cfg.Roots[0] != "~/dev" {
+		t.Errorf("Roots = %v, want the synced config's roots", cfg.Roots)
+	}
+
+	// Non-Darwin platforms never consult ~/.config separately: their
+	// platform default already is ~/.config (or $XDG_CONFIG_HOME).
+	linuxRoot := filepath.Join(t.TempDir(), ".config")
+	if got := resolveConfigDir("linux", home, linuxRoot); got != filepath.Join(linuxRoot, "coldstorage") {
+		t.Errorf("linux ConfigDir = %q, want the platform default", got)
+	}
+}
+
+func TestResolveConfigDirMacMissingHome(t *testing.T) {
+	platformRoot := filepath.Join(t.TempDir(), "Library", "Application Support")
+	if got := resolveConfigDir("darwin", "", platformRoot); got != filepath.Join(platformRoot, "coldstorage") {
+		t.Errorf("ConfigDir = %q, want the platform default", got)
+	}
+}
+
+func writeConfigFile(t *testing.T, path, content string) {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		t.Fatalf("mkdir: %v", err)
 	}
-	p, err = ResolvePaths()
-	if err != nil {
-		t.Fatalf("ResolvePaths: %v", err)
-	}
-	if p.ConfigDir != filepath.Join(home, ".config", "coldstorage") {
-		t.Errorf("ConfigDir = %q, want the synced ~/.config location", p.ConfigDir)
-	}
-	if p.ConfigFile != filepath.Join(home, ".config", "coldstorage", "config.toml") {
-		t.Errorf("ConfigFile = %q", p.ConfigFile)
+	if err := os.WriteFile(path, []byte(content+"\n"), 0o600); err != nil {
+		t.Fatalf("write %s: %v", path, err)
 	}
 }
 

@@ -342,6 +342,9 @@ func cfgDuration(s string, def time.Duration) time.Duration {
 // handleKey routes a key by mode. The table keeps its full §12 keymap; the
 // overlays take the few keys they need and hand the rest back.
 func (m model) handleKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
+	// The first key acknowledges the startup warnings: they stay on the
+	// status line long enough to be read, then yield to the live status.
+	m.warnings = nil
 	switch m.mode {
 	case modeHelp:
 		return m.keyHelp(key)

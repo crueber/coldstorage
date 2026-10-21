@@ -71,8 +71,12 @@ the architectural reason the provider-CLI layer exists at all.
 
 - Config: platform config dir, `drydock/config.toml` (`~/.config/drydock/`
   on Linux, honoring `$XDG_CONFIG_HOME`; `~/Library/Application
-  Support/drydock/` on macOS). An explicit existing `~/.config/drydock`
-  wins over the macOS platform default, so synced config dirs keep working.
+  Support/drydock/` on macOS). On macOS an existing
+  `~/.config/drydock/config.toml` wins over the platform default, so synced
+  config dirs keep working. The rule is decided by the file, not the
+  directory: an empty `~/.config/drydock/` must not shadow a real config in
+  Application Support. When no config file exists, writes (the org manager)
+  go to the platform config dir.
 - Cache: platform cache dir, `drydock/state.json` (honoring
   `$XDG_CACHE_HOME`). Disposable by design: a missing or unreadable cache
   is a non-event.
@@ -85,8 +89,10 @@ the architectural reason the provider-CLI layer exists at all.
 
 Unknown keys are a **hard error** on load, with the file path in the
 message — except the dashboard, which falls back to defaults with a
-visible warning rather than refusing to open. New fields MUST be added with
-serde-style defaults so older files keep loading.
+visible warning rather than refusing to open. The warning owns the status
+line until the first keypress: background sweep progress must not bury the
+one message that explains why the dashboard is running on defaults. New
+fields MUST be added with serde-style defaults so older files keep loading.
 
 ```toml
 roots = ["~/Projects"]          # dirs to scan; each immediate subdir = a "group"

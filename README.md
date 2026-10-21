@@ -87,10 +87,14 @@ git clone git@github.com:crueber/coldstorage.git
 cd coldstorage && go install ./cmd/coldstorage
 ```
 
-Run `coldstorage` — there are no subcommands. First launch scans
-`~/Projects` (the default root), and the config below is created at
-`~/.config/coldstorage/config.toml` on Linux,
-`~/Library/Application Support/coldstorage/config.toml` on macOS.
+Run `coldstorage` — there are no subcommands. The config is read from
+`~/.config/coldstorage/config.toml` on Linux and
+`~/Library/Application Support/coldstorage/config.toml` on macOS. On macOS an
+existing `~/.config/coldstorage/config.toml` also works and takes precedence,
+which keeps dotfile-synced configs where they are. With no config at all, the
+first launch scans `~/Projects` (the default root). If a config exists but
+cannot be loaded, the dashboard says so on its status line instead of
+silently ignoring it.
 
 ## Configuration
 

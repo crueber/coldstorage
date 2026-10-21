@@ -23,30 +23,32 @@ type Paths struct {
 //
 // $XDG_CONFIG_HOME and $XDG_CACHE_HOME win whenever set, on every
 // platform. On macOS the platform config root is ~/Library/Application
-// Support, but an existing ~/.config/coldstorage takes precedence: configs
-// synced by dotfile managers land in ~/.config, and the dashboard must
-// keep reading them without a migration step. The cache has no such rule —
-// it is disposable by design, and a missing or unreadable cache is a
-// non-event.
+// Support, but a config.toml under ~/.config/coldstorage takes precedence:
+// configs synced by dotfile managers land in ~/.config, and the dashboard
+// must keep reading them without a migration step.
+//
+// The precedence is decided by the config *file*, not by the directory. A
+// bare ~/.config/coldstorage (a leftover mkdir, or a dotfile manager that
+// creates the tree before the file) once shadowed a real config in
+// Application Support, so a working setup silently ran on the default
+// ~/Projects root. A directory only wins when it actually holds the file
+// the owner is editing.
+//
+// The cache has no such rule — it is disposable by design, and a missing or
+// unreadable cache is a non-event.
 func ResolvePaths() (Paths, error) {
 	var p Paths
 
-	configRoot := os.Getenv("XDG_CONFIG_HOME")
-	if configRoot == "" {
-		if runtime.GOOS == "darwin" {
-			if candidate, ok := darwinLegacyConfigRoot(); ok {
-				configRoot = candidate
-			}
+	if configRoot := os.Getenv("XDG_CONFIG_HOME"); configRoot != "" {
+		p.ConfigDir = filepath.Join(configRoot, "coldstorage")
+	} else {
+		platformRoot, err := os.UserConfigDir()
+		if err != nil {
+			return Paths{}, err
 		}
-		if configRoot == "" {
-			root, err := os.UserConfigDir()
-			if err != nil {
-				return Paths{}, err
-			}
-			configRoot = root
-		}
+		home, _ := os.UserHomeDir()
+		p.ConfigDir = resolveConfigDir(runtime.GOOS, home, platformRoot)
 	}
-	p.ConfigDir = filepath.Join(configRoot, "coldstorage")
 
 	cacheRoot := os.Getenv("XDG_CACHE_HOME")
 	if cacheRoot == "" {
@@ -63,19 +65,34 @@ func ResolvePaths() (Paths, error) {
 	return p, nil
 }
 
-// darwinLegacyConfigRoot reports ~/.config when it already holds a
-// coldstorage directory, so synced configs keep working without the owner
-// being asked to move anything.
-func darwinLegacyConfigRoot() (string, bool) {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return "", false
+// resolveConfigDir picks the directory coldstorage reads and writes its
+// config in. On macOS the platform default is ~/Library/Application Support,
+// but ~/.config/coldstorage wins when it already contains a config.toml:
+// synced configs keep working without the owner being asked to move
+// anything. Everywhere else the platform default is the only candidate (on
+// Linux it is already ~/.config or $XDG_CONFIG_HOME).
+//
+// Tests drive this with a synthetic GOOS and temp dirs, so the macOS rule
+// is exercised on every platform, not just on a Mac.
+func resolveConfigDir(goos, home, platformRoot string) string {
+	platformDir := filepath.Join(platformRoot, "coldstorage")
+	if goos != "darwin" || home == "" {
+		return platformDir
 	}
-	candidate := filepath.Join(home, ".config", "coldstorage")
-	if _, err := os.Stat(candidate); err != nil {
-		return "", false
+	legacy := filepath.Join(home, ".config", "coldstorage")
+	if legacy == platformDir || !hasConfigFile(legacy) {
+		return platformDir
 	}
-	return filepath.Join(home, ".config"), true
+	return legacy
+}
+
+// hasConfigFile reports whether dir already holds a config file. A missing
+// or dangling path, an unreadable directory, or a directory named
+// config.toml all count as "no config here", so resolution falls through to
+// the next candidate instead of pointing the loader at a dead end.
+func hasConfigFile(dir string) bool {
+	info, err := os.Stat(filepath.Join(dir, "config.toml"))
+	return err == nil && !info.IsDir()
 }
 
 // Expand resolves a leading ~ to the home directory, so config values can
