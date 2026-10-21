@@ -2,11 +2,34 @@ package config
 
 import (
 	"bytes"
+	"errors"
+	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 
 	"github.com/BurntSushi/toml"
 )
+
+// Ensure writes the default configuration to path when nothing exists there
+// yet. A fresh install must get a real file, not just in-memory defaults:
+// the org manager and the group-color overlay save settings, and a save with
+// no config file behind it is how a working setup once looked like it kept
+// forgetting itself. An existing file is never touched — the owner's edits
+// win. Callers pass the platform location, never an explicit -config path:
+// a typo in a hand-typed path must stay visible instead of silently
+// becoming a new file.
+func Ensure(path string) error {
+	if _, err := os.Stat(path); err == nil {
+		return nil
+	} else if !errors.Is(err, fs.ErrNotExist) {
+		return fmt.Errorf("coldstorage: %s: %w", path, err)
+	}
+	if err := Save(path, Default()); err != nil {
+		return fmt.Errorf("coldstorage: %s: %w", path, err)
+	}
+	return nil
+}
 
 // Save writes the configuration to path (§3). The write is atomic — encode
 // to a temporary file in the same directory, fsync, then rename — because a

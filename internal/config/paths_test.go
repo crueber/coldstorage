@@ -68,9 +68,10 @@ func TestResolveConfigDirMacLayout(t *testing.T) {
 	legacy := filepath.Join(home, ".config", "coldstorage")
 	platformDir := filepath.Join(platformRoot, "coldstorage")
 
-	// Neither location has a config yet: writes go to the platform default.
-	if got := resolveConfigDir("darwin", home, platformRoot); got != platformDir {
-		t.Fatalf("fresh install ConfigDir = %q, want %q", got, platformDir)
+	// Neither location has a config yet: a fresh install gets the
+	// XDG-style home, which is where the dashboard creates its file.
+	if got := resolveConfigDir("darwin", home, platformRoot); got != legacy {
+		t.Fatalf("fresh install ConfigDir = %q, want %q", got, legacy)
 	}
 
 	// A real config in Application Support is honored even when an empty

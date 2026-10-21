@@ -69,14 +69,15 @@ the architectural reason the provider-CLI layer exists at all.
 
 ## 3. File locations
 
-- Config: platform config dir, `drydock/config.toml` (`~/.config/drydock/`
-  on Linux, honoring `$XDG_CONFIG_HOME`; `~/Library/Application
-  Support/drydock/` on macOS). On macOS an existing
-  `~/.config/drydock/config.toml` wins over the platform default, so synced
-  config dirs keep working. The rule is decided by the file, not the
-  directory: an empty `~/.config/drydock/` must not shadow a real config in
-  Application Support. When no config file exists, writes (the org manager)
-  go to the platform config dir.
+- Config: `~/.config/drydock/config.toml` on Linux and macOS, honoring
+  `$XDG_CONFIG_HOME`. A fresh install creates the file from the defaults on
+  first launch, because the dashboard saves settings (org registrations,
+  group colors) and a save target must exist. On macOS an existing
+  `~/Library/Application Support/drydock/config.toml` is still read, and
+  written to, when no `~/.config` file exists — upgrading must not abandon
+  a working config. The rule is decided by the file, not the directory: an
+  empty `~/.config/drydock/` must not shadow a real config in Application
+  Support. An explicit `-config` path is never created.
 - Cache: platform cache dir, `drydock/state.json` (honoring
   `$XDG_CACHE_HOME`). Disposable by design: a missing or unreadable cache
   is a non-event.

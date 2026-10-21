@@ -43,19 +43,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	file := *configPath
-	if file == "" {
-		file = paths.ConfigFile
-	}
-
-	cfg, err := config.Load(file)
-	// §4: the dashboard falls back to defaults with a visible warning
-	// rather than refusing to open.
-	var warnings []string
-	if err != nil {
-		warnings = append(warnings, fmt.Sprintf("config: %v; using defaults", err))
-		cfg = config.Default()
-	}
+	cfg, warnings := loadConfig(paths.ConfigFile, *configPath)
 	// §4: org problems are reported, never silently repaired.
 	for _, problem := range cfg.OrgProblems() {
 		warnings = append(warnings, "org: "+problem)
@@ -93,6 +81,33 @@ func main() {
 		os.Exit(1)
 	}
 	eng.Close()
+}
+
+// loadConfig reads this run's config, creating the default file on a fresh
+// install first (§3). The dashboard saves settings — org registrations, group
+// colors — and a save needs a real file; without one the first save created
+// it, but until then the owner had nothing to edit. An explicit -config
+// override is never created: a typo in a hand-typed path must stay visible
+// instead of turning into a new file.
+//
+// §4: a load or creation failure falls back to defaults with a visible
+// warning rather than refusing to open.
+func loadConfig(platformFile, override string) (config.Config, []string) {
+	var warnings []string
+	file := override
+	if file == "" {
+		file = platformFile
+		if err := config.Ensure(file); err != nil {
+			warnings = append(warnings, fmt.Sprintf("config: %v", err))
+		}
+	}
+
+	cfg, err := config.Load(file)
+	if err != nil {
+		warnings = append(warnings, fmt.Sprintf("config: %v; using defaults", err))
+		return config.Default(), warnings
+	}
+	return cfg, warnings
 }
 
 // stamped fills unstamped slots from the build info that go install records

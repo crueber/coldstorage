@@ -22,10 +22,12 @@ type Paths struct {
 // declare twice; here the function is ResolvePaths.
 //
 // $XDG_CONFIG_HOME and $XDG_CACHE_HOME win whenever set, on every
-// platform. On macOS the platform config root is ~/Library/Application
-// Support, but a config.toml under ~/.config/coldstorage takes precedence:
-// configs synced by dotfile managers land in ~/.config, and the dashboard
-// must keep reading them without a migration step.
+// platform. On macOS the canonical config home is ~/.config/coldstorage: a
+// fresh install writes its config there, and an existing config there wins
+// over the historical ~/Library/Application Support location, so configs
+// synced by dotfile managers keep working without a migration step. An
+// existing Application Support config is still honored when no ~/.config
+// file exists.
 //
 // The precedence is decided by the config *file*, not by the directory. A
 // bare ~/.config/coldstorage (a leftover mkdir, or a dotfile manager that
@@ -66,11 +68,16 @@ func ResolvePaths() (Paths, error) {
 }
 
 // resolveConfigDir picks the directory coldstorage reads and writes its
-// config in. On macOS the platform default is ~/Library/Application Support,
-// but ~/.config/coldstorage wins when it already contains a config.toml:
-// synced configs keep working without the owner being asked to move
-// anything. Everywhere else the platform default is the only candidate (on
-// Linux it is already ~/.config or $XDG_CONFIG_HOME).
+// config in. On macOS the historical platform default is
+// ~/Library/Application Support, but coldstorage's canonical home is
+// ~/.config/coldstorage: a new install gets its config created there, where
+// the dashboard's saves have always worked, and an existing config there
+// wins. An existing Application Support file is still honored when no
+// ~/.config file exists — upgrading must never abandon a registered org or a
+// hand-tuned config.
+//
+// Everywhere else the platform default is the only candidate (on Linux it is
+// already ~/.config or $XDG_CONFIG_HOME).
 //
 // Tests drive this with a synthetic GOOS and temp dirs, so the macOS rule
 // is exercised on every platform, not just on a Mac.
@@ -79,11 +86,18 @@ func resolveConfigDir(goos, home, platformRoot string) string {
 	if goos != "darwin" || home == "" {
 		return platformDir
 	}
-	legacy := filepath.Join(home, ".config", "coldstorage")
-	if legacy == platformDir || !hasConfigFile(legacy) {
+	xdgDir := filepath.Join(home, ".config", "coldstorage")
+	if xdgDir == platformDir {
 		return platformDir
 	}
-	return legacy
+	switch {
+	case hasConfigFile(xdgDir):
+		return xdgDir
+	case hasConfigFile(platformDir):
+		return platformDir
+	default:
+		return xdgDir
+	}
 }
 
 // hasConfigFile reports whether dir already holds a config file. A missing
